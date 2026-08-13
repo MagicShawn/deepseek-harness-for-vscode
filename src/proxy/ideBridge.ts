@@ -34,8 +34,9 @@ export function createIdeBridgeScript(): string {
       if (!(event.target instanceof Element)) return;
       const anchor = event.target.closest('a');
       if (!anchor) return;
-      const value = anchor.getAttribute('data-file-path') || anchor.getAttribute('href') || '';
-      if (!value.startsWith('file://')) return;
+      const explicit = anchor.getAttribute('data-file-path');
+      const value = explicit || anchor.getAttribute('href') || '';
+      if (!explicit && !value.startsWith('file://')) return;
       event.preventDefault();
       event.stopPropagation();
       reply({ type: 'openFile', value });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseHarnessUrl } from '../../src/domain/runtimeOutput.js'
+import { parseHarnessUrl, redactRuntimeLog } from '../../src/domain/runtimeOutput.js'
 
 describe('parseHarnessUrl', () => {
   it.each([
@@ -13,5 +13,14 @@ describe('parseHarnessUrl', () => {
   it('does not accept a remote or credential-bearing URL from process output', () => {
     expect(parseHarnessUrl('ready at http://192.168.1.10:3080')).toBeUndefined()
     expect(parseHarnessUrl('ready at http://user:secret@127.0.0.1:3080')).toBeUndefined()
+  })
+})
+
+describe('redactRuntimeLog', () => {
+  it('removes authorization, cookie, API key, URL credential, and query values', () => {
+    const line = 'Authorization: Bearer secret; Cookie=session-secret; api_key=sk-secret http://user:pass@127.0.0.1:3080/?token=url-secret'
+    const redacted = redactRuntimeLog(line)
+    expect(redacted).not.toMatch(/secret|user:pass/u)
+    expect(redacted).toContain('[REDACTED]')
   })
 })

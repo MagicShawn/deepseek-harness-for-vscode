@@ -78,10 +78,13 @@ function normalizeExternalUrl(value: string): string {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error('deepseekHarness.externalUrl must use HTTP or HTTPS')
   }
+  if (url.username !== '' || url.password !== '') {
+    throw new Error('deepseekHarness.externalUrl must not contain credentials')
+  }
   return url.href
 }
 
-export function resolveLaunchPlan(config: LaunchConfig, dshOnPath: boolean, platform: RuntimePlatform): LaunchPlan {
+export function resolveLaunchPlan(config: LaunchConfig, dshCommand: string | undefined, platform: RuntimePlatform): LaunchPlan {
   if (config.mode !== 'managed' && config.externalUrl.trim() !== '') {
     return { kind: 'external', url: normalizeExternalUrl(config.externalUrl.trim()) }
   }
@@ -95,7 +98,7 @@ export function resolveLaunchPlan(config: LaunchConfig, dshOnPath: boolean, plat
     if (command === undefined) throw new Error('Custom command cannot be empty')
     return { kind: 'managed', command, args: [...prefixArgs, ...webArgs] }
   }
-  if (dshOnPath) return { kind: 'managed', command: 'dsh', args: webArgs }
+  if (dshCommand !== undefined) return { kind: 'managed', command: dshCommand, args: webArgs }
   return {
     kind: 'managed',
     command: platform === 'win32' ? 'npx.cmd' : 'npx',

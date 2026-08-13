@@ -39,6 +39,25 @@ describe('createEditorContext', () => {
     })
   })
 
+  it('does not count the next line when a multi-line selection ends at column zero', () => {
+    const context = createEditorContext({
+      document: {
+        fileName: '/workspace/src/app.ts',
+        languageId: 'typescript',
+        isUntitled: false,
+        uriPath: 'file:///workspace/src/app.ts',
+        getText: () => 'one\ntwo\n',
+      },
+      selection: {
+        isEmpty: false,
+        start: { line: 0, character: 0 },
+        end: { line: 2, character: 0 },
+      },
+    }, '/workspace')
+
+    expect(context).toMatchObject({ startLine: 1, endLine: 2 })
+  })
+
   it('uses the whole document when there is no selection', () => {
     const doc = document('one\ntwo')
     const editor: TextEditorLike = {

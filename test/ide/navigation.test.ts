@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -24,6 +24,18 @@ describe('resolveExistingFileLocation', () => {
     await writeFile(path.join(parent, 'secret.txt'), 'secret')
 
     await expect(resolveExistingFileLocation('../secret.txt', [root])).resolves.toBeUndefined()
+  })
+
+  it('refuses a relative path that escapes through a workspace junction or symlink', async () => {
+    const parent = await mkdtemp(path.join(tmpdir(), 'dsh-vscode-nav-link-'))
+    const root = path.join(parent, 'workspace')
+    const outside = path.join(parent, 'outside')
+    await mkdir(root)
+    await mkdir(outside)
+    await writeFile(path.join(outside, 'secret.txt'), 'secret')
+    await symlink(outside, path.join(root, 'escape'), process.platform === 'win32' ? 'junction' : 'dir')
+
+    await expect(resolveExistingFileLocation('escape/secret.txt', [root])).resolves.toBeUndefined()
   })
 
   it('accepts an explicit absolute file but refuses missing files and directories', async () => {

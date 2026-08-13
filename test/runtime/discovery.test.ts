@@ -1,6 +1,8 @@
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { executableCandidates } from '../../src/runtime/discovery.js'
+import { executableCandidates, findCommand } from '../../src/runtime/discovery.js'
 
 describe('executableCandidates', () => {
   it('expands PATHEXT only on Windows and preserves PATH order', () => {
@@ -24,5 +26,17 @@ describe('executableCandidates', () => {
       pathValue: '/usr/local/bin:/usr/bin',
       pathExt: '',
     })).toEqual(['/usr/local/bin/dsh', '/usr/bin/dsh'])
+  })
+
+  it('returns the exact executable path that exists instead of only a boolean', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'dsh-vscode-discovery-'))
+    const candidate = path.join(directory, process.platform === 'win32' ? 'dsh.CMD' : 'dsh')
+    await writeFile(candidate, '')
+    if (process.platform !== 'win32') await chmod(candidate, 0o755)
+    const environment = process.platform === 'win32'
+      ? { PATH: directory, PATHEXT: '.CMD' }
+      : { PATH: directory }
+
+    await expect(findCommand('dsh', environment)).resolves.toBe(candidate)
   })
 })

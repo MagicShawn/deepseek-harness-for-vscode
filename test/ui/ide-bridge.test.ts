@@ -59,4 +59,29 @@ describe('createIdeBridgeScript', () => {
       value: 'file:///D:/repo/src/app.ts#L7:2',
     })
   })
+
+  it('accepts an explicit data-file-path even when the link href is not a file URL', () => {
+    const { dom, posted } = runBridge('<a id="file" data-file-path="D:\\repo\\src\\app.ts:9:2" href="#">app</a>')
+    const event = new dom.window.MouseEvent('click', { bubbles: true, cancelable: true })
+    dom.window.document.querySelector('#file')?.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(posted).toContainEqual({
+      source: 'dsh-vscode-bridge',
+      type: 'openFile',
+      value: 'D:\\repo\\src\\app.ts:9:2',
+    })
+  })
+
+  it('clicks the official new-session control when the shell requests it', () => {
+    const { dom } = runBridge('<button aria-label="New session">new</button>')
+    const button = dom.window.document.querySelector('button')
+    let clicks = 0
+    button?.addEventListener('click', () => { clicks += 1 })
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', {
+      source: dom.window as unknown as Window,
+      data: { source: 'dsh-vscode-shell', type: 'newSession' },
+    }))
+    expect(clicks).toBe(1)
+  })
 })

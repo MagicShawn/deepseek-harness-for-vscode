@@ -1,5 +1,5 @@
 import { resolveLaunchPlan, type LaunchConfig, type RuntimePlatform } from '../domain/launch.js'
-import { parseHarnessUrl } from '../domain/runtimeOutput.js'
+import { parseHarnessUrl, redactRuntimeLog } from '../domain/runtimeOutput.js'
 
 export type RuntimeStatus =
   | { state: 'stopped' }
@@ -15,6 +15,7 @@ export interface RuntimeReady {
 export interface ProcessCallbacks {
   stdout(line: string): void
   stderr(line: string): void
+  error(error: Error): void
   exit(code: number | null, signal: NodeJS.Signals | null): void
 }
 
@@ -41,7 +42,7 @@ export interface RuntimeDependencies {
   config: LaunchConfig
   cwd: string
   platform: RuntimePlatform
-  dshOnPath: boolean
+  dshCommand: string | undefined
   startupTimeoutMs: number
   spawn: ProcessSpawner
   probe: HealthProbe
@@ -49,11 +50,18 @@ export interface RuntimeDependencies {
   env?: NodeJS.ProcessEnv
 }
 
+class RuntimeStartCancelledError extends Error {
+  constructor() {
+    super('DeepSeek Harness startup was stopped')
+    this.name = 'RuntimeStartCancelledError'
+  }
+}
+
 export class HarnessRuntimeManager {
   private currentStatus: RuntimeStatus = { state: 'stopped' }
   private process: ProcessHandle | undefined
   private startPromise: Promise<RuntimeReady> | undefined
-  private stopping = false
+  private cancelPendingStart: (() => void) | undefined
   private readonly listeners = new Set<(status: RuntimeStatus) => void>()
 
   constructor(private readonly dependencies: RuntimeDependencies) {}
@@ -77,7 +85,7 @@ export class HarnessRuntimeManager {
     const operation = this.startInternal()
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
-        this.setStatus({ state: 'error', message })
+        if (!(error instanceof RuntimeStartCancelledError)) this.setStatus({ state: 'error', message })
         throw error
       })
       .finally(() => {
@@ -88,13 +96,14 @@ export class HarnessRuntimeManager {
   }
 
   async stop(): Promise<void> {
-    this.stopping = true
     const owned = this.process
     this.process = undefined
+    const cancel = this.cancelPendingStart
+    this.cancelPendingStart = undefined
+    cancel?.()
     if (owned !== undefined) await owned.kill()
     this.startPromise = undefined
     this.setStatus({ state: 'stopped' })
-    this.stopping = false
   }
 
   async restart(): Promise<RuntimeReady> {
@@ -105,13 +114,20 @@ export class HarnessRuntimeManager {
   private async startInternal(): Promise<RuntimeReady> {
     const plan = resolveLaunchPlan(
       this.dependencies.config,
-      this.dependencies.dshOnPath,
+      this.dependencies.dshCommand,
       this.dependencies.platform,
     )
     if (plan.kind === 'external') {
       const controller = new AbortController()
+      let cancelled = false
+      this.cancelPendingStart = () => {
+        cancelled = true
+        controller.abort()
+      }
       const healthy = await this.dependencies.probe(plan.url, controller.signal)
-      if (!healthy) throw new Error(`DeepSeek Harness external URL is unreachable: ${plan.url}`)
+      this.cancelPendingStart = undefined
+      if (cancelled) throw new RuntimeStartCancelledError()
+      if (!healthy) throw new Error(`DeepSeek Harness external URL is unreachable: ${redactRuntimeLog(plan.url)}`)
       const ready = { url: plan.url, managed: false }
       this.setStatus({ state: 'ready', ...ready })
       return ready
@@ -133,6 +149,7 @@ export class HarnessRuntimeManager {
         settled = true
         clearTimeout(timer)
         controller.abort()
+        this.cancelPendingStart = undefined
         const owned = this.process
         this.process = undefined
         if (kill && owned !== undefined) await owned.kill()
@@ -149,6 +166,7 @@ export class HarnessRuntimeManager {
           if (!healthy) return
           settled = true
           clearTimeout(timer)
+          this.cancelPendingStart = undefined
           resolve({ url, managed: true })
         }).catch(error => {
           probing = false
@@ -162,30 +180,36 @@ export class HarnessRuntimeManager {
           true,
         )
       }, this.dependencies.startupTimeoutMs)
+      this.cancelPendingStart = () => {
+        void rejectOnce(new RuntimeStartCancelledError(), false)
+      }
 
       try {
-        this.stopping = false
-        this.process = this.dependencies.spawn(command, args, {
+        const spawned = this.dependencies.spawn(command, args, {
           cwd: this.dependencies.cwd,
           env: { ...process.env, ...this.dependencies.env },
         }, {
           stdout: line => {
-            this.dependencies.log(`[Harness] ${line}`)
+            this.dependencies.log(`[Harness] ${redactRuntimeLog(line)}`)
             acceptUrl(line)
           },
           stderr: line => {
-            this.dependencies.log(`[Harness:stderr] ${line}`)
+            this.dependencies.log(`[Harness:stderr] ${redactRuntimeLog(line)}`)
             acceptUrl(line)
           },
+          error: error => {
+            void rejectOnce(error, true)
+          },
           exit: (code, signal) => {
+            if (this.process !== spawned) return
             this.process = undefined
-            if (this.stopping) return
             const detail = code === null ? `signal ${signal ?? 'unknown'}` : `exit code ${code}`
             const error = new Error(`DeepSeek Harness process stopped unexpectedly (${detail})`)
             if (!settled) void rejectOnce(error, false)
             else this.setStatus({ state: 'error', message: error.message })
           },
         })
+        this.process = spawned
       } catch (error) {
         void rejectOnce(error instanceof Error ? error : new Error(String(error)), false)
       }

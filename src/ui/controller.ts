@@ -78,8 +78,12 @@ export class HarnessUiController {
   }
 
   async restart(): Promise<void> {
-    const ready = await this.runtime.restart()
-    await this.loadReady(ready.url)
+    try {
+      const ready = await this.runtime.restart()
+      await this.loadReady(ready.url)
+    } catch {
+      // Runtime status carries the actionable diagnostic to every view.
+    }
   }
 
   async stop(): Promise<void> {
@@ -89,12 +93,12 @@ export class HarnessUiController {
   async sendContext(text: string): Promise<boolean> {
     const targets = [...this.views].filter(view => view.visible !== false)
     if (targets.length === 0) return false
-    await Promise.all(targets.map(view => view.webview.postMessage({
+    const delivered = await Promise.all(targets.map(view => view.webview.postMessage({
       source: 'dsh-vscode-extension',
       type: 'insertContext',
       text,
     })))
-    return true
+    return delivered.some(Boolean)
   }
 
   refresh(): void {

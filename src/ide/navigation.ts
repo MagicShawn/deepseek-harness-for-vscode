@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { parseFileLocation } from '../domain/fileLocation.js'
 
@@ -21,6 +21,14 @@ async function regularFile(candidate: string): Promise<boolean> {
   }
 }
 
+async function containedByRealPath(root: string, candidate: string): Promise<boolean> {
+  try {
+    return contained(await realpath(root), await realpath(candidate))
+  } catch {
+    return false
+  }
+}
+
 export async function resolveExistingFileLocation(
   value: string,
   workspaceRoots: string[],
@@ -36,6 +44,10 @@ export async function resolveExistingFileLocation(
 
   for (const candidate of candidates) {
     if (!await regularFile(candidate)) continue
+    if (!path.isAbsolute(parsed.path)) {
+      const inside = await Promise.all(workspaceRoots.map(root => containedByRealPath(root, candidate)))
+      if (!inside.some(Boolean)) continue
+    }
     return {
       absolutePath: candidate,
       line: (parsed.line ?? 1) - 1,

@@ -58,7 +58,7 @@ class FakeProxy {
   async stop(): Promise<void> { this.stops += 1 }
 }
 
-function view(visible = true): ShellView & { messages: unknown[]; receive(message: unknown): void } {
+function view(visible = true, acceptsMessages = true): ShellView & { messages: unknown[]; receive(message: unknown): void } {
   const messages: unknown[] = []
   let receiver: ((message: unknown) => void) | undefined
   return {
@@ -66,7 +66,7 @@ function view(visible = true): ShellView & { messages: unknown[]; receive(messag
     messages,
     webview: {
       html: '',
-      postMessage: async message => { messages.push(message); return true },
+      postMessage: async message => { messages.push(message); return acceptsMessages },
       onDidReceiveMessage: listener => {
         receiver = listener
         return { dispose: () => { receiver = undefined } }
@@ -128,6 +128,12 @@ describe('HarnessUiController', () => {
     expect(hidden.messages).not.toContainEqual(expect.objectContaining({ type: 'insertContext' }))
   })
 
+  it('reports context delivery failure when every visible webview rejects the message', async () => {
+    const fixture = setup()
+    fixture.controller.attach(view(true, false))
+    await expect(fixture.controller.sendContext('selected code')).resolves.toBe(false)
+  })
+
   it('routes validated file and command messages but ignores arbitrary commands', async () => {
     const fixture = setup()
     const shell = view()
@@ -149,6 +155,12 @@ describe('HarnessUiController', () => {
       'http://127.0.0.1:3080/',
       'http://127.0.0.1:3081/',
     ])
+  })
+
+  it('absorbs a restart failure after the runtime publishes its diagnostic status', async () => {
+    const fixture = setup()
+    fixture.runtime.restart = vi.fn(async () => { throw new Error('restart failed') })
+    await expect(fixture.controller.restart()).resolves.toBeUndefined()
   })
 
   it('disposes both proxy and owned runtime', async () => {

@@ -35,7 +35,9 @@ export function createEditorContext(editor: TextEditorLike, workspacePath: strin
   const selected = !editor.selection.isEmpty
   const text = selected ? editor.document.getText(editor.selection) : editor.document.getText()
   const startLine = selected ? editor.selection.start.line + 1 : 1
-  const endLine = selected ? editor.selection.end.line + 1 : lineCount(text)
+  const endLine = selected
+    ? editor.selection.end.line + (editor.selection.end.character === 0 && editor.selection.end.line > editor.selection.start.line ? 0 : 1)
+    : lineCount(text)
   return {
     absolutePath: editor.document.isUntitled ? editor.document.uriPath : editor.document.fileName,
     ...(workspacePath !== undefined && { workspacePath }),

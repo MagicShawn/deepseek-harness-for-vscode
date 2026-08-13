@@ -21,6 +21,10 @@ class FakeProcess implements ProcessHandle {
     this.callbacks.stderr(line)
   }
 
+  error(message: string): void {
+    this.callbacks.error(new Error(message))
+  }
+
   exit(code: number | null, signal: NodeJS.Signals | null = null): void {
     this.callbacks.exit(code, signal)
   }
@@ -47,7 +51,7 @@ function setup(overrides: Partial<RuntimeDependencies> = {}): {
     config: config(),
     cwd: 'D:\\workspace',
     platform: 'win32',
-    dshOnPath: false,
+    dshCommand: undefined,
     startupTimeoutMs: 100,
     probe,
     spawn: (_command, _args, _options, callbacks) => {
@@ -92,6 +96,34 @@ describe('HarnessRuntimeManager', () => {
 
     await expect(fixture.manager.start()).rejects.toThrow('unreachable')
     expect(fixture.manager.status).toMatchObject({ state: 'error' })
+  })
+
+  it('redacts external URL query values from status diagnostics', async () => {
+    const fixture = setup({
+      config: config({ mode: 'external', externalUrl: 'http://127.0.0.1:3999/?token=secret-value' }),
+      probe: async () => false,
+    })
+
+    await expect(fixture.manager.start()).rejects.not.toThrow('secret-value')
+    expect(fixture.manager.status).toMatchObject({ state: 'error' })
+    if (fixture.manager.status.state === 'error') expect(fixture.manager.status.message).not.toContain('secret-value')
+  })
+
+  it('cancels an in-flight external health probe without later changing to error', async () => {
+    let aborted = false
+    const fixture = setup({
+      config: config({ mode: 'external', externalUrl: 'http://127.0.0.1:3999' }),
+      probe: async (_url, signal) => await new Promise<boolean>(resolve => {
+        signal.addEventListener('abort', () => { aborted = true; resolve(false) }, { once: true })
+        setTimeout(() => resolve(false), 50)
+      }),
+    })
+    const started = fixture.manager.start()
+    await fixture.manager.stop()
+
+    await expect(started).rejects.toThrow('stopped')
+    expect(aborted).toBe(true)
+    expect(fixture.manager.status).toEqual({ state: 'stopped' })
   })
 
   it('becomes ready only after discovering and probing the managed Web URL', async () => {
@@ -146,11 +178,49 @@ describe('HarnessRuntimeManager', () => {
     await expect(restarted).resolves.toEqual({ url: 'http://127.0.0.1:3081/', managed: true })
   })
 
+  it('ignores a late exit from the stopped process after its replacement is ready', async () => {
+    const fixture = setup()
+    const firstStart = fixture.manager.start()
+    fixture.processes[0]?.stdout('dsh web: http://127.0.0.1:3080')
+    await firstStart
+
+    const restarted = fixture.manager.restart()
+    await vi.waitFor(() => expect(fixture.processes).toHaveLength(2))
+    fixture.processes[1]?.stdout('dsh web: http://127.0.0.1:3081')
+    await restarted
+    fixture.processes[0]?.exit(null, 'SIGTERM')
+
+    expect(fixture.manager.status).toEqual({
+      state: 'ready',
+      url: 'http://127.0.0.1:3081/',
+      managed: true,
+    })
+  })
+
   it('times out and cleans up a process that never announces a URL', async () => {
     const fixture = setup({ startupTimeoutMs: 10 })
 
     await expect(fixture.manager.start()).rejects.toThrow('timed out')
     expect(fixture.processes[0]?.killed).toBe(true)
     expect(fixture.manager.status).toMatchObject({ state: 'error' })
+  })
+
+  it('cancels a pending startup immediately when stopped without later changing to error', async () => {
+    const fixture = setup({ startupTimeoutMs: 10_000 })
+    const started = fixture.manager.start()
+    await fixture.manager.stop()
+
+    await expect(started).rejects.toThrow('stopped')
+    expect(fixture.processes[0]?.killed).toBe(true)
+    expect(fixture.manager.status).toEqual({ state: 'stopped' })
+  })
+
+  it('fails immediately with the spawn diagnostic when a custom command does not exist', async () => {
+    const fixture = setup({ startupTimeoutMs: 10_000 })
+    const started = fixture.manager.start()
+    fixture.processes[0]?.error('spawn missing-dsh ENOENT')
+
+    await expect(started).rejects.toThrow('ENOENT')
+    expect(fixture.manager.status).toMatchObject({ state: 'error', message: expect.stringContaining('ENOENT') })
   })
 })

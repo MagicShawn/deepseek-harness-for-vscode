@@ -18,9 +18,10 @@ async function manifest(): Promise<Manifest> {
 }
 
 describe('extension manifest', () => {
-  it('declares the visual container and both activation surfaces', async () => {
+  it('declares startup and both visual activation surfaces', async () => {
     const value = await manifest()
     expect(value.activationEvents).toEqual(expect.arrayContaining([
+      'onStartupFinished',
       'onView:deepseekHarness.sidebar',
       'onWebviewPanel:deepseekHarness.panel',
     ]))

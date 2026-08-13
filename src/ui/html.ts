@@ -22,6 +22,8 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     settings: '设置',
     open: '在浏览器中打开',
     restart: '重启',
+    refresh: '刷新页面',
+    more: '更多操作',
     failed: '连接失败',
   } : {
     title: 'DeepSeek Harness',
@@ -33,6 +35,8 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     settings: 'Settings',
     open: 'Open in browser',
     restart: 'Restart',
+    refresh: 'Refresh page',
+    more: 'More actions',
     failed: 'Connection failed',
   }
   const copyJson = jsonForScript(copy)
@@ -58,6 +62,13 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     button { color: var(--vscode-button-secondaryForeground); background: transparent; border: 0; border-radius: 4px; padding: 5px 7px; font: inherit; cursor: pointer; }
     button:hover { background: var(--vscode-toolbar-hoverBackground); }
     button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+    details { position: relative; }
+    summary { list-style: none; cursor: pointer; border-radius: 4px; padding: 5px 7px; }
+    summary::-webkit-details-marker { display: none; }
+    summary:hover { background: var(--vscode-toolbar-hoverBackground); }
+    summary:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+    .menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 4; min-width: 142px; padding: 4px; border: 1px solid var(--vscode-menu-border, var(--vscode-panel-border)); border-radius: 5px; background: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--vscode-editor-background))); box-shadow: 0 2px 8px var(--vscode-widget-shadow); }
+    .menu button { width: 100%; text-align: left; color: var(--vscode-menu-foreground, var(--vscode-foreground)); }
     .surface { position: relative; min-height: 0; }
     iframe { width: 100%; height: 100%; border: 0; background: var(--vscode-editor-background); }
     .state { position: absolute; inset: 0; display: grid; place-items: center; padding: 28px; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); z-index: 2; }
@@ -79,7 +90,15 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     <span id="dot" class="dot" aria-hidden="true"></span>
     <span class="brand">${copy.title}</span>
     <button id="open" title="${copy.open}" aria-label="${copy.open}">↗</button>
+    <button id="refresh" title="${copy.refresh}" aria-label="${copy.refresh}">⟳</button>
     <button id="restart" title="${copy.restart}" aria-label="${copy.restart}">↻</button>
+    <details id="more">
+      <summary title="${copy.more}" aria-label="${copy.more}">⋯</summary>
+      <div class="menu">
+        <button id="menuLogs">${copy.logs}</button>
+        <button id="menuSettings">${copy.settings}</button>
+      </div>
+    </details>
   </header>
   <main class="surface">
     <iframe id="harness" title="DeepSeek Harness" hidden></iframe>
@@ -106,12 +125,22 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     const detail = document.getElementById('detail');
     const primary = document.getElementById('primary');
     let runtime = ${statusJson};
+    let bridgeReady = false;
+    const pendingHarnessMessages = [];
+
+    const postToHarness = message => {
+      if (!bridgeReady) { pendingHarnessMessages.push(message); return; }
+      frame.contentWindow?.postMessage(message, '*');
+    };
 
     const command = command => vscode.postMessage({ type: 'command', command });
     document.getElementById('open').addEventListener('click', () => command('openBrowser'));
+    document.getElementById('refresh').addEventListener('click', () => command('refresh'));
     document.getElementById('restart').addEventListener('click', () => command('restart'));
     document.getElementById('logs').addEventListener('click', () => command('showLogs'));
     document.getElementById('settings').addEventListener('click', () => command('openSettings'));
+    document.getElementById('menuLogs').addEventListener('click', () => command('showLogs'));
+    document.getElementById('menuSettings').addEventListener('click', () => command('openSettings'));
     primary.addEventListener('click', () => command(runtime.state === 'error' ? 'restart' : 'start'));
 
     function renderStatus(status) {
@@ -138,13 +167,19 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     }
 
     window.addEventListener('message', event => {
-      if (event.source === frame.contentWindow && event.data && event.data.source === 'dsh-vscode-bridge') {
-        const value = event.data;
-        if (value.type === 'openFile' && typeof value.value === 'string') vscode.postMessage({ type: 'openFile', value: value.value });
-        if (value.type === 'contextResult' && typeof value.ok === 'boolean') vscode.postMessage({ type: 'contextResult', ok: value.ok });
+      if (event.source === frame.contentWindow) {
+        if (event.data && event.data.source === 'dsh-vscode-bridge') {
+          const value = event.data;
+          if (value.type === 'ready') {
+            bridgeReady = true;
+            while (pendingHarnessMessages.length > 0) frame.contentWindow?.postMessage(pendingHarnessMessages.shift(), '*');
+          }
+          if (value.type === 'openFile' && typeof value.value === 'string') vscode.postMessage({ type: 'openFile', value: value.value });
+          if (value.type === 'contextResult' && typeof value.ok === 'boolean') vscode.postMessage({ type: 'contextResult', ok: value.ok });
+        }
         return;
       }
-      if (event.source !== window || !event.data || event.data.source !== 'dsh-vscode-extension') return;
+      if (!event.data || event.data.source !== 'dsh-vscode-extension') return;
       switch (event.data.type) {
         case 'runtimeStatus':
           renderStatus(event.data.status);
@@ -154,16 +189,17 @@ export function createShellHtml(options: ShellHtmlOptions): string {
           try { url = new URL(event.data.url); } catch { return; }
           if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
           if (!['127.0.0.1', 'localhost'].includes(url.hostname)) return;
+          bridgeReady = false;
           frame.src = url.href;
           frame.hidden = false;
           state.hidden = true;
           break;
         }
         case 'insertContext':
-          frame.contentWindow?.postMessage({ source: 'dsh-vscode-shell', type: 'insertContext', text: event.data.text }, '*');
+          postToHarness({ source: 'dsh-vscode-shell', type: 'insertContext', text: event.data.text });
           break;
         case 'newSession':
-          frame.contentWindow?.postMessage({ source: 'dsh-vscode-shell', type: 'newSession' }, '*');
+          postToHarness({ source: 'dsh-vscode-shell', type: 'newSession' });
           break;
       }
     });

@@ -6,7 +6,7 @@ import { createEditorContext } from './ide/context.js'
 import { resolveExistingFileLocation } from './ide/navigation.js'
 import { createIdeBridgeScript } from './proxy/ideBridge.js'
 import { HarnessProxy } from './proxy/server.js'
-import { commandExists } from './runtime/discovery.js'
+import { findCommand } from './runtime/discovery.js'
 import { probeHarness } from './runtime/health.js'
 import { HarnessRuntimeManager } from './runtime/manager.js'
 import { spawnHarnessProcess } from './runtime/process.js'
@@ -99,9 +99,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const settings = configuration()
   const output = vscode.window.createOutputChannel('DeepSeek Harness')
   output.appendLine('[Extension] Activating DeepSeek Harness UI')
-  const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? context.globalStorageUri.fsPath
-  const dshOnPath = await commandExists('dsh')
-  output.appendLine(`[Runtime] dsh on PATH: ${dshOnPath ? 'yes' : 'no; npx fallback enabled'}`)
+  const workspace = vscode.workspace.workspaceFolders?.[0]
+  if (workspace === undefined) await vscode.workspace.fs.createDirectory(context.globalStorageUri)
+  const cwd = workspace?.uri.fsPath ?? context.globalStorageUri.fsPath
+  const dshCommand = await findCommand('dsh')
+  output.appendLine(`[Runtime] dsh on PATH: ${dshCommand !== undefined ? 'yes' : 'no; npx fallback enabled'}`)
 
   const runtime = new HarnessRuntimeManager({
     config: {
@@ -112,7 +114,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
     cwd,
     platform: process.platform,
-    dshOnPath,
+    dshCommand,
     startupTimeoutMs: settings.timeoutMs,
     spawn: spawnHarnessProcess,
     probe: probeHarness,

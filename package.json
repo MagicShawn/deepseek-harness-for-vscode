@@ -10,6 +10,7 @@
     "vscode": "^1.90.0"
   },
   "activationEvents": [
+    "onStartupFinished",
     "onView:deepseekHarness.sidebar",
     "onWebviewPanel:deepseekHarness.panel"
   ],
@@ -117,8 +118,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src test",
-    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.0.vsix"
+    "lint": "eslint src test scripts",
+    "package": "npm run build && vsce package --allow-missing-repository --out dist/deepseek-harness-ui-0.1.0.vsix"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

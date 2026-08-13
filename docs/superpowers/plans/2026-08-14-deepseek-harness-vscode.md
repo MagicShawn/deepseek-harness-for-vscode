@@ -24,11 +24,11 @@
 
 **Interfaces:** produce `resolveLaunchPlan(config, pathAvailable)`, `parseHarnessUrl(line)`, `formatEditorContext(selection)`, and `parseFileLocation(value)` as pure functions.
 
-- [ ] Write failing tests for managed/external/auto resolution, quoted custom commands, official URL log shapes, Windows/POSIX file locations, and selected/full-file Markdown context.
-- [ ] Run `npm test` and verify missing module/export failures.
-- [ ] Add minimal types and implementations.
-- [ ] Run focused tests and the full suite.
-- [ ] Commit the independently testable domain layer.
+- [x] Write failing tests for managed/external/auto resolution, quoted custom commands, official URL log shapes, Windows/POSIX file locations, and selected/full-file Markdown context.
+- [x] Run `npm test` and verify missing module/export failures.
+- [x] Add minimal types and implementations.
+- [x] Run focused tests and the full suite.
+- [x] Commit the independently testable domain layer.
 
 ### Task 2: Runtime manager
 
@@ -36,11 +36,11 @@
 
 **Interfaces:** produce `HarnessRuntimeManager.start(): Promise<RuntimeReady>`, `stop()`, `restart()`, `status`, `onDidChangeStatus`, and dependency-injected `ProcessSpawner`/`HealthProbe`.
 
-- [ ] Write failing state-machine tests for external health success/failure, managed stdout URL discovery, timeout, unexpected exit, idempotent concurrent start, restart, and owned-process cleanup.
-- [ ] Verify failures are behavioral rather than setup errors.
-- [ ] Implement the smallest manager satisfying the tests.
-- [ ] Run runtime and full tests, then refactor duplicated transitions.
-- [ ] Commit runtime lifecycle support.
+- [x] Write failing state-machine tests for external health success/failure, managed stdout URL discovery, timeout, unexpected exit, idempotent concurrent start, restart, and owned-process cleanup.
+- [x] Verify failures are behavioral rather than setup errors.
+- [x] Implement the smallest manager satisfying the tests.
+- [x] Run runtime and full tests, then refactor duplicated transitions.
+- [x] Commit runtime lifecycle support.
 
 ### Task 3: Authenticated reverse proxy and bridge injection
 
@@ -48,11 +48,11 @@
 
 **Interfaces:** produce `HarnessProxy.start(upstream): Promise<ProxyReady>`, `updateUpstream(url)`, `stop()`, `injectBridge(html, script)`, and transparent HTTP/upgrade forwarding.
 
-- [ ] Write failing fixture-server tests for token rejection, GET/static/POST/SSE forwarding, header rewriting, HTML bridge injection, 502 behavior, and WebSocket echo.
-- [ ] Run tests and confirm expected proxy absence/failures.
-- [ ] Implement loopback server, streaming forwarder, HTML transform, and upgrade socket tunnel.
-- [ ] Run proxy and full tests; verify sockets close on disposal.
-- [ ] Commit proxy support.
+- [x] Write failing fixture-server tests for token rejection, GET/static/POST/SSE forwarding, header rewriting, HTML bridge injection, 502 behavior, and WebSocket echo.
+- [x] Run tests and confirm expected proxy absence/failures.
+- [x] Implement loopback server, streaming forwarder, HTML transform, and upgrade socket tunnel.
+- [x] Run proxy and full tests; verify sockets close on disposal.
+- [x] Commit proxy support.
 
 ### Task 4: VS Code Webview and editor integration
 
@@ -60,11 +60,11 @@
 
 **Interfaces:** register view `deepseekHarness.sidebar`, commands `openPanel`, `newSession`, `sendSelection`, `sendFile`, `openFile`, `compareFiles`, `start`, `stop`, `restart`, `refresh`, `showLogs`, and `openSettings`.
 
-- [ ] Write failing tests against a narrow VS Code adapter for command registration, context delivery, safe file opening, diff URI creation, and webview message validation.
-- [ ] Verify failures.
-- [ ] Implement provider, toolbar shell, localized copy, command handlers, and injected composer/file-link bridge.
-- [ ] Run tests, typecheck, and build; inspect narrow and editor-panel HTML states.
-- [ ] Commit the complete interactive extension.
+- [x] Write failing tests against a narrow VS Code adapter for command registration, context delivery, safe file opening, diff URI creation, and webview message validation.
+- [x] Verify failures.
+- [x] Implement provider, toolbar shell, localized copy, command handlers, and injected composer/file-link bridge.
+- [x] Run tests, typecheck, and build; inspect narrow and editor-panel HTML states.
+- [x] Commit the complete interactive extension.
 
 ### Task 5: Packaging, documentation, and completion verification
 
@@ -72,10 +72,9 @@
 
 **Interfaces:** `npm run package` produces `dist/deepseek-harness-ui-<version>.vsix`.
 
-- [ ] Add manifest tests/assertions for commands, settings, views, menus, activation events, icon paths, license, and packaged file allowlist.
-- [ ] Verify the assertions fail before metadata is complete.
-- [ ] Complete documentation and packaging metadata; generate original non-infringing vector icons.
-- [ ] Run `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run package`, inspect VSIX contents, and install it into a temporary VS Code extensions directory.
-- [ ] Launch an Extension Development Host or headless smoke path with a fixture Harness server; capture evidence for sidebar, proxy, context, navigation, and lifecycle.
-- [ ] Commit the release candidate and report the absolute VSIX path plus exact validation results.
-
+- [x] Add manifest tests/assertions for commands, settings, views, menus, activation events, icon paths, license, and packaged file allowlist.
+- [x] Verify the assertions fail before metadata is complete.
+- [x] Complete documentation and packaging metadata; generate original non-infringing vector icons.
+- [x] Run `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`, `npm run package`, inspect VSIX contents, and install it into a temporary VS Code extensions directory.
+- [x] Launch an Extension Development Host or headless smoke path with a fixture Harness server; capture evidence for sidebar, proxy, context, navigation, and lifecycle.
+- [x] Commit the release candidate and report the absolute VSIX path plus exact validation results.
