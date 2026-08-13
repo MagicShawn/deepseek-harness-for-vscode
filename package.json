@@ -9,7 +9,108 @@
   "engines": {
     "vscode": "^1.90.0"
   },
+  "activationEvents": [
+    "onView:deepseekHarness.sidebar",
+    "onWebviewPanel:deepseekHarness.panel"
+  ],
   "main": "./dist/extension.cjs",
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "deepseek",
+    "harness",
+    "agent",
+    "ai",
+    "chat"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseekHarness",
+          "title": "DeepSeek Harness",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "deepseekHarness": [
+        {
+          "id": "deepseekHarness.sidebar",
+          "name": "Harness",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "deepseekHarness.focus", "title": "DeepSeek Harness: Focus Chat", "icon": "$(comment-discussion)" },
+      { "command": "deepseekHarness.openPanel", "title": "DeepSeek Harness: Open in Editor", "icon": "$(open-preview)" },
+      { "command": "deepseekHarness.newSession", "title": "DeepSeek Harness: New Session", "icon": "$(add)" },
+      { "command": "deepseekHarness.sendSelection", "title": "DeepSeek Harness: Add Selection to Context", "icon": "$(quote)" },
+      { "command": "deepseekHarness.sendFile", "title": "DeepSeek Harness: Add File to Context", "icon": "$(file-code)" },
+      { "command": "deepseekHarness.compareFiles", "title": "DeepSeek Harness: Compare Files", "icon": "$(diff)" },
+      { "command": "deepseekHarness.start", "title": "DeepSeek Harness: Start", "icon": "$(play)" },
+      { "command": "deepseekHarness.stop", "title": "DeepSeek Harness: Stop", "icon": "$(debug-stop)" },
+      { "command": "deepseekHarness.restart", "title": "DeepSeek Harness: Restart", "icon": "$(refresh)" },
+      { "command": "deepseekHarness.refresh", "title": "DeepSeek Harness: Refresh UI", "icon": "$(refresh)" },
+      { "command": "deepseekHarness.openBrowser", "title": "DeepSeek Harness: Open in Browser", "icon": "$(link-external)" },
+      { "command": "deepseekHarness.showLogs", "title": "DeepSeek Harness: Show Logs", "icon": "$(output)" },
+      { "command": "deepseekHarness.openSettings", "title": "DeepSeek Harness: Settings", "icon": "$(settings-gear)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "deepseekHarness.newSession", "when": "view == deepseekHarness.sidebar", "group": "navigation@1" },
+        { "command": "deepseekHarness.openPanel", "when": "view == deepseekHarness.sidebar", "group": "navigation@2" },
+        { "command": "deepseekHarness.restart", "when": "view == deepseekHarness.sidebar", "group": "navigation@3" }
+      ],
+      "editor/context": [
+        { "command": "deepseekHarness.sendSelection", "when": "editorHasSelection", "group": "deepseekHarness@1" },
+        { "command": "deepseekHarness.sendFile", "when": "resourceScheme == file", "group": "deepseekHarness@2" }
+      ]
+    },
+    "configuration": {
+      "title": "DeepSeek Harness",
+      "properties": {
+        "deepseekHarness.connectionMode": {
+          "type": "string",
+          "enum": ["auto", "managed", "external"],
+          "default": "auto",
+          "description": "Choose whether to start a local Harness or connect to an external URL."
+        },
+        "deepseekHarness.externalUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Existing DeepSeek Harness Web URL used by auto/external mode."
+        },
+        "deepseekHarness.command": {
+          "type": "string",
+          "default": "",
+          "description": "Custom dsh executable and optional prefix arguments. Leave empty for auto-discovery."
+        },
+        "deepseekHarness.port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "Managed Harness Web port. Use 0 to select a free port."
+        },
+        "deepseekHarness.startupTimeout": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 300,
+          "default": 60,
+          "description": "Seconds to wait for the managed Harness Web UI to become ready."
+        },
+        "deepseekHarness.openOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Focus the Harness sidebar after a workspace opens."
+        }
+      }
+    }
+  },
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
@@ -20,12 +121,14 @@
     "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.0.vsix"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.90.0",
     "@types/ws": "^8.18.1",
     "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.8",
     "eslint": "^9.33.0",
+    "jsdom": "^30.0.1",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.1",
     "vitest": "^3.2.4",
