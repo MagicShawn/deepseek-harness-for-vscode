@@ -1,0 +1,32 @@
+{
+  "name": "deepseek-harness-ui",
+  "displayName": "DeepSeek Harness UI",
+  "description": "Unofficial VS Code visual workspace for the official DeepSeek Harness Web UI.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.cjs",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.0.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.6.2",
+    "esbuild": "^0.25.8",
+    "eslint": "^9.33.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.1",
+    "vitest": "^3.2.4"
+  }
+}
