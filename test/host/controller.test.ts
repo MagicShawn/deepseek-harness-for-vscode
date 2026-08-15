@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -10,7 +10,11 @@ import { describe, expect, test } from 'vitest'
 
 import { ArtifactStore } from '../../src/artifacts/store.js'
 import { SkillInsightController } from '../../src/host/controller.js'
-import { decodeInsightCommandResult } from '../../src/shared/envelope.js'
+import {
+  decodeInsightCommandResult,
+  encodeInsightCommandResult,
+} from '../../src/shared/envelope.js'
+import type { InsightReport } from '../../src/shared/types.js'
 
 interface FakeEvent {
   type: string
@@ -77,6 +81,68 @@ function invocation(agent: Agent, events: FakeEvent[], rawInput: string, id: str
   } as unknown as CommandInvocation
 }
 
+function completedReport(analysisId: string, sessionId = 'session-1'): InsightReport {
+  return {
+    schemaVersion: 1,
+    analysisId,
+    sessionId,
+    cutoffSeq: 1,
+    createdAt: '2026-08-15T00:00:00.000Z',
+    requestedMode: 'rules',
+    effectiveMode: 'rules',
+    skill: { name: 'demo-skill', path: '/skills/demo/SKILL.md', provider: 'filesystem' },
+    summary: `Report ${analysisId}`,
+    metrics: {
+      totalEvents: 1,
+      toolCalls: 0,
+      toolErrors: 0,
+      repeatedToolCalls: 0,
+      recoveryAttempts: 0,
+    },
+    issues: [],
+    proposal: null,
+    validations: [],
+    warnings: [],
+  }
+}
+
+function appendCompleted(events: FakeEvent[], report: InsightReport, artifactDirectory: string): void {
+  events.push({
+    type: 'command/done',
+    seq: events.length,
+    time: Date.now(),
+    data: {
+      commandId: `command-${report.analysisId}`,
+      kind: 'success',
+      text: encodeInsightCommandResult({
+        schemaVersion: 1,
+        type: 'completed',
+        analysisId: report.analysisId,
+        report,
+        artifactDirectory,
+        message: 'Completed.',
+      }),
+    },
+  })
+}
+
+function appendDone(events: FakeEvent[], commandId: string, text: string): void {
+  events.push({
+    type: 'command/done',
+    seq: events.length,
+    time: Date.now(),
+    data: { commandId, kind: 'success', text },
+  })
+}
+
+function cleanupController(artifacts: ArtifactStore): SkillInsightController {
+  return new SkillInsightController({
+    skills: { get: async () => undefined },
+    llm: { async *stream() {} },
+    artifacts,
+  } as unknown as ConstructorParameters<typeof SkillInsightController>[0])
+}
+
 describe('SkillInsightController', () => {
   test('runs hybrid analysis, persists it, then applies and reverts by hash', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'skill-insight-controller-'))
@@ -136,5 +202,91 @@ describe('SkillInsightController', () => {
     expect(decodeInsightCommandResult(reverted.text)?.type).toBe('reverted')
     expect(await readFile(skillPath, 'utf8')).toBe('# Old\n')
     expect(events.every((event) => !event.type.startsWith('skill-insight/'))).toBe(true)
+  })
+
+  test('clears only the selected current-session analysis and keeps the applied Skill unchanged', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'skill-insight-controller-'))
+    const skillPath = join(directory, 'SKILL.md')
+    await writeFile(skillPath, '# Applied\n', 'utf8')
+    const artifacts = new ArtifactStore(join(directory, 'artifacts'))
+    const firstDirectory = artifacts.directoryFor('session-1', 'si-one')
+    const secondDirectory = artifacts.directoryFor('session-1', 'si-two')
+    const otherSessionDirectory = artifacts.directoryFor('session-2', 'si-one')
+    for (const artifactDirectory of [firstDirectory, secondDirectory, otherSessionDirectory]) {
+      await mkdir(artifactDirectory, { recursive: true })
+      await writeFile(join(artifactDirectory, 'report.json'), '{}\n', 'utf8')
+    }
+    const { session, events } = harnessSession(directory)
+    appendCompleted(events, completedReport('si-one'), firstDirectory)
+    appendCompleted(events, completedReport('si-two'), secondDirectory)
+    const agent = harnessAgent(session)
+    const controller = cleanupController(artifacts)
+
+    const result = await controller.execute(invocation(agent, events, 'clear si-one', 'clear-one'))
+
+    expect(result.kind).toBe('success')
+    const cleared = decodeInsightCommandResult(result.text)
+    expect(cleared).toMatchObject({
+      type: 'cleared',
+      scope: 'analysis',
+      clearedAnalysisIds: ['si-one'],
+    })
+    await expect(access(firstDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(access(secondDirectory)).resolves.toBeUndefined()
+    await expect(access(otherSessionDirectory)).resolves.toBeUndefined()
+    await expect(readFile(skillPath, 'utf8')).resolves.toBe('# Applied\n')
+    expect(events.every((event) => !event.type.startsWith('skill-insight/'))).toBe(true)
+
+    if (!result.text) throw new Error('Expected the cleanup result to include a durable envelope.')
+    appendDone(events, 'clear-one', result.text)
+    const listed = await controller.execute(invocation(agent, events, 'list', 'list-after-clear'))
+    expect(listed.text).toContain('si-two')
+    expect(listed.text).not.toContain('si-one')
+    const shown = await controller.execute(invocation(agent, events, 'show si-one', 'show-cleared'))
+    expect(shown.kind).toBe('error')
+  })
+
+  test('clears all active analyses only in the current session and handles an empty repeat safely', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'skill-insight-controller-'))
+    const artifacts = new ArtifactStore(join(directory, 'artifacts'))
+    const currentDirectories = ['si-one', 'si-two'].map((id) => artifacts.directoryFor('session-1', id))
+    const otherSessionDirectory = artifacts.directoryFor('session-2', 'si-three')
+    for (const artifactDirectory of [...currentDirectories, otherSessionDirectory]) {
+      await mkdir(artifactDirectory, { recursive: true })
+      await writeFile(join(artifactDirectory, 'report.json'), '{}\n', 'utf8')
+    }
+    const { session, events } = harnessSession(directory)
+    appendCompleted(events, completedReport('si-one'), currentDirectories[0]!)
+    appendCompleted(events, completedReport('si-two'), currentDirectories[1]!)
+    const agent = harnessAgent(session)
+    const controller = cleanupController(artifacts)
+
+    const result = await controller.execute(
+      invocation(agent, events, 'clear --all --confirm', 'clear-all'),
+    )
+
+    expect(result.kind).toBe('success')
+    expect(decodeInsightCommandResult(result.text)).toMatchObject({
+      type: 'cleared',
+      scope: 'session',
+      clearedAnalysisIds: ['si-one', 'si-two'],
+    })
+    for (const artifactDirectory of currentDirectories) {
+      await expect(access(artifactDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+    await expect(access(otherSessionDirectory)).resolves.toBeUndefined()
+
+    if (!result.text) throw new Error('Expected the cleanup result to include a durable envelope.')
+    appendDone(events, 'clear-all', result.text)
+    const repeated = await controller.execute(
+      invocation(agent, events, 'clear --all --confirm', 'clear-all-again'),
+    )
+    expect(repeated).toEqual({ kind: 'success', text: 'No active Skill Insight analyses to clear in this session.' })
+    const unknown = await controller.execute(invocation(agent, events, 'clear si-missing', 'clear-missing'))
+    expect(unknown.kind).toBe('error')
+    expect(decodeInsightCommandResult(unknown.text)).toMatchObject({
+      type: 'failed',
+      operation: 'clear',
+    })
   })
 })

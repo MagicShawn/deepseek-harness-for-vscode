@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 
 import type {
@@ -56,7 +56,45 @@ export class ArtifactStore {
   constructor(private readonly root = dshHomePath('skill-insight')) {}
 
   directoryFor(sessionId: string, analysisId: string): string {
-    return join(this.root, safeSegment(sessionId), safeSegment(analysisId))
+    const root = resolve(this.root)
+    const directory = resolve(root, safeSegment(sessionId), safeSegment(analysisId))
+    const relativePath = relative(root, directory)
+    if (!relativePath || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      throw new Error('Skill Insight artifact path escaped the configured root.')
+    }
+    return directory
+  }
+
+  async removeAnalysis(sessionId: string, analysisId: string): Promise<boolean> {
+    const directory = this.directoryFor(sessionId, analysisId)
+    let sessionStats
+    try {
+      sessionStats = await lstat(dirname(directory))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+    if (sessionStats.isSymbolicLink()) {
+      throw new Error('Refusing to remove artifacts through a symbolic-link session directory.')
+    }
+    if (!sessionStats.isDirectory()) {
+      throw new Error('Refusing to remove artifacts through a session path that is not a directory.')
+    }
+    let stats
+    try {
+      stats = await lstat(directory)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw error
+    }
+    if (stats.isSymbolicLink()) {
+      throw new Error('Refusing to remove a symbolic-link artifact directory.')
+    }
+    if (!stats.isDirectory()) {
+      throw new Error('Refusing to remove an artifact path that is not a directory.')
+    }
+    await rm(directory, { recursive: true, force: true })
+    return true
   }
 
   async writeAnalysis(input: AnalysisArtifacts): Promise<string> {

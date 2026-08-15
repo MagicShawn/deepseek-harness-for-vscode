@@ -30,11 +30,32 @@ export interface InsightProjectionState {
   run: InsightRunView
 }
 
-export interface InsightConversationNode extends ConversationViewNode {
+export interface InsightRunConversationNode extends ConversationViewNode {
+  readonly kind: 'skill-insight-run'
   readonly target: 'skill-insight'
   readonly anchorSeq: number
   readonly data: InsightRunView
 }
+
+export interface InsightClearProjectionState {
+  anchorSeq: number
+  markerId: string
+  clearedAnalysisIds: string[]
+}
+
+export interface InsightClearConversationNode extends ConversationViewNode {
+  readonly kind: 'skill-insight-clear'
+  readonly target: 'skill-insight'
+  readonly anchorSeq: number
+  readonly data: {
+    markerId: string
+    clearedAnalysisIds: string[]
+  }
+}
+
+export type InsightConversationNode = InsightRunConversationNode | InsightClearConversationNode
+
+type InsightRunEnvelope = Exclude<InsightCommandEnvelope, { type: 'cleared' }>
 
 const EMPTY_RUNS: readonly InsightRunView[] = []
 
@@ -58,11 +79,13 @@ function updateState(
   }
   if (event.type !== 'command/done') return state
   const envelope = decodeInsightCommandResult(event.data.text)
-  return envelope === null ? state : stateFromEnvelope(envelope, event.seq, state)
+  return envelope === null || envelope.type === 'cleared'
+    ? state
+    : stateFromEnvelope(envelope, event.seq, state)
 }
 
 function stateFromEnvelope(
-  envelope: InsightCommandEnvelope,
+  envelope: InsightRunEnvelope,
   anchorSeq: number,
   previous?: InsightProjectionState,
 ): InsightProjectionState {
@@ -101,7 +124,9 @@ function stateFromEnvelope(
 function commandMatch(event: Parameters<ConversationNodeDefinition<InsightProjectionState>['match']>[0]) {
   if (event.type === 'command/done') {
     const envelope = decodeInsightCommandResult(event.data.text)
-    return envelope === null ? null : { id: envelope.analysisId, role: 'update' as const }
+    if (envelope === null || envelope.type === 'cleared'
+      || (envelope.type === 'failed' && envelope.operation === 'clear')) return null
+    return { id: envelope.analysisId, role: 'update' as const }
   }
   if (event.type !== 'command/run' || event.data.name !== 'skill-insight') return null
   try {
@@ -152,11 +177,16 @@ export const insightEventDefinition: ConversationNodeDefinition<InsightProjectio
   buildViewNode: (context: ConversationNodeContext<InsightProjectionState>) => {
     let state = context.state
     if (!state) {
-      const settled = context.matches.findLast(match => match.event.type === 'command/done'
-        && decodeInsightCommandResult(match.event.data.text) !== null)
+      const settled = context.matches.findLast((match) => {
+        if (match.event.type !== 'command/done') return false
+        const envelope = decodeInsightCommandResult(match.event.data.text)
+        return envelope !== null && envelope.type !== 'cleared'
+      })
       if (settled?.event.type === 'command/done') {
         const envelope = decodeInsightCommandResult(settled.event.data.text)
-        if (envelope) state = stateFromEnvelope(envelope, settled.event.seq)
+        if (envelope && envelope.type !== 'cleared') {
+          state = stateFromEnvelope(envelope, settled.event.seq)
+        }
       }
     }
     if (!state) return null
@@ -167,7 +197,48 @@ export const insightEventDefinition: ConversationNodeDefinition<InsightProjectio
       target: 'skill-insight',
       anchorSeq: state.anchorSeq,
       data: state.run,
-    } satisfies InsightConversationNode
+    } satisfies InsightRunConversationNode
+  },
+}
+
+export const insightClearEventDefinition: ConversationNodeDefinition<InsightClearProjectionState> = {
+  kind: 'skill-insight-clear',
+  target: 'skill-insight',
+  match: (event) => {
+    if (event.type !== 'command/done') return null
+    const envelope = decodeInsightCommandResult(event.data.text)
+    return envelope?.type === 'cleared'
+      ? { id: envelope.analysisId, role: 'start' as const }
+      : null
+  },
+  start: (_context, match) => {
+    if (match.event.type !== 'command/done') {
+      throw new Error('skill-insight-clear start requires command/done')
+    }
+    const envelope = decodeInsightCommandResult(match.event.data.text)
+    if (envelope?.type !== 'cleared') {
+      throw new Error('skill-insight-clear start requires a cleared result')
+    }
+    return {
+      anchorSeq: match.event.seq,
+      markerId: envelope.analysisId,
+      clearedAnalysisIds: envelope.clearedAnalysisIds,
+    }
+  },
+  update: (context) => context.state,
+  buildViewNode: (context) => {
+    if (!context.state) return null
+    return {
+      key: context.key,
+      kind: 'skill-insight-clear',
+      id: context.id,
+      target: 'skill-insight',
+      anchorSeq: context.state.anchorSeq,
+      data: {
+        markerId: context.state.markerId,
+        clearedAnalysisIds: context.state.clearedAnalysisIds,
+      },
+    } satisfies InsightClearConversationNode
   },
 }
 
@@ -196,9 +267,20 @@ export class InsightSnapshotBuilder implements ConversationViewBuilder<
   }
 
   private snapshot(): InsightViewSnapshot {
-    const ordered = [...this.nodes.values()].sort(
+    const clearedAnalysisIds = new Set<string>()
+    const runs: InsightRunConversationNode[] = []
+    for (const node of this.nodes.values()) {
+      if (node.kind === 'skill-insight-clear') {
+        for (const analysisId of node.data.clearedAnalysisIds) clearedAnalysisIds.add(analysisId)
+      } else {
+        runs.push(node)
+      }
+    }
+    const ordered = runs
+      .filter((node) => !clearedAnalysisIds.has(node.data.analysisId))
+      .sort(
       (left, right) => right.anchorSeq - left.anchorSeq || right.id.localeCompare(left.id),
-    )
+      )
     return {
       latestAnalysisId: ordered[0]?.data.analysisId ?? null,
       runs: ordered.map((node) => node.data),
@@ -216,5 +298,6 @@ export const insightViewDefinition: ConversationViewDefinition<
 
 export function registerInsightProjection(ctx: Context): void {
   ctx.conversationEvents.register(insightEventDefinition)
+  ctx.conversationEvents.register(insightClearEventDefinition)
   ctx.conversationViews.register(insightViewDefinition)
 }

@@ -9,7 +9,9 @@ import { describe, expect, test } from 'vitest'
 import {
   EMPTY_INSIGHT_SNAPSHOT,
   InsightSnapshotBuilder,
+  insightClearEventDefinition,
   insightEventDefinition,
+  type InsightClearConversationNode,
   type InsightConversationNode,
   type InsightProjectionState,
 } from '../../src/client/projection.js'
@@ -128,5 +130,84 @@ describe('Skill Insight client projection', () => {
 
     expect(snapshot.latestAnalysisId).toBe('si-2')
     expect(snapshot.runs.map((run) => run.analysisId)).toEqual(['si-2', analysisId])
+  })
+
+  test('materializes a cleanup result as a dedicated tombstone node', () => {
+    const clearedEvent = event('command/done', 10, {
+      commandId: CommandId('cmd-clear'),
+      kind: 'success',
+      text: encodeInsightCommandResult({
+        schemaVersion: 1,
+        type: 'cleared',
+        analysisId: 'si-clear-marker',
+        scope: 'analysis',
+        clearedAnalysisIds: [analysisId],
+        message: 'Cleared.',
+      }),
+    })
+    const matched = insightClearEventDefinition.match(clearedEvent)
+    expect(matched).toEqual({ id: 'si-clear-marker', role: 'start' })
+    const state = insightClearEventDefinition.start(
+      {} as never,
+      match(clearedEvent, 'start'),
+      { previous: () => undefined },
+    )
+    const node = insightClearEventDefinition.buildViewNode?.({
+      key: 'clear-node',
+      kind: 'skill-insight-clear',
+      id: 'si-clear-marker',
+      matches: [match(clearedEvent, 'start')],
+      start: match(clearedEvent, 'start'),
+      state,
+      current: new Map(),
+    }) as InsightClearConversationNode
+
+    expect(node.kind).toBe('skill-insight-clear')
+    expect(node.data.clearedAnalysisIds).toEqual([analysisId])
+    expect(insightEventDefinition.match(clearedEvent)).toBeNull()
+  })
+
+  test('filters single and session cleanup tombstones while retaining other runs', () => {
+    const builder = new InsightSnapshotBuilder()
+    const first = {
+      key: 'run-one', kind: 'skill-insight-run', id: analysisId, target: 'skill-insight', anchorSeq: 2,
+      data: { analysisId, status: 'completed', report },
+    } as InsightConversationNode
+    const second = {
+      key: 'run-two', kind: 'skill-insight-run', id: 'si-2', target: 'skill-insight', anchorSeq: 8,
+      data: { analysisId: 'si-2', status: 'running' },
+    } as InsightConversationNode
+    const singleClear = {
+      key: 'clear-one', kind: 'skill-insight-clear', id: 'si-clear-one', target: 'skill-insight', anchorSeq: 10,
+      data: { markerId: 'si-clear-one', clearedAnalysisIds: [analysisId] },
+    } as InsightClearConversationNode
+
+    let snapshot = builder.replace({
+      nodes: [first, second, singleClear],
+      timeline: { turnOrder: [], turns: new Map() },
+    })
+    expect(snapshot.latestAnalysisId).toBe('si-2')
+    expect(snapshot.runs.map((run) => run.analysisId)).toEqual(['si-2'])
+
+    const failedUpdate = {
+      ...first,
+      anchorSeq: 11,
+      data: { ...first.data, error: 'A later apply failed.' },
+    } as InsightConversationNode
+    snapshot = builder.apply({
+      upserts: [failedUpdate],
+      timeline: { turnOrder: [], turns: new Map() },
+    })
+    expect(snapshot.runs.map((run) => run.analysisId)).toEqual(['si-2'])
+
+    const sessionClear = {
+      key: 'clear-all', kind: 'skill-insight-clear', id: 'si-clear-all', target: 'skill-insight', anchorSeq: 12,
+      data: { markerId: 'si-clear-all', clearedAnalysisIds: ['si-2'] },
+    } as InsightClearConversationNode
+    snapshot = builder.apply({
+      upserts: [sessionClear],
+      timeline: { turnOrder: [], turns: new Map() },
+    })
+    expect(snapshot).toEqual(EMPTY_INSIGHT_SNAPSHOT)
   })
 })

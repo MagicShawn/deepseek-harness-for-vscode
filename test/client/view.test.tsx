@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
-import { createElement } from 'react'
+import { act, createElement } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { SkillInsightView, type SkillInsightViewInjected } from '../../src/client/SkillInsightView.js'
 import { SkillInsightCommandCard } from '../../src/client/SkillInsightCommandCard.js'
 import { encodeInsightCommandResult } from '../../src/shared/envelope.js'
 import type { InsightReport, InsightViewSnapshot } from '../../src/shared/types.js'
+
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true
 
 const report: InsightReport = {
   schemaVersion: 1,
@@ -39,7 +43,48 @@ const report: InsightReport = {
   warnings: [],
 }
 
+function viewProps(insight: InsightViewSnapshot, runCommand: (line: string) => Promise<void>) {
+  const conversation = { views: new Map([['skill-insight', insight]]) }
+  return {
+    sessionId: 'session-ui',
+    useSession: (selector: (snapshot: typeof conversation) => unknown) => selector(conversation),
+    runCommand,
+  } as unknown as ConvViewProps & SkillInsightViewInjected
+}
+
+async function renderInteractive(props: ConvViewProps & SkillInsightViewInjected): Promise<{
+  container: HTMLDivElement
+  root: Root
+}> {
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  await act(async () => {
+    root.render(createElement(SkillInsightView, props))
+  })
+  return { container, root }
+}
+
+function button(container: HTMLElement, label: string): HTMLButtonElement {
+  const match = [...container.querySelectorAll('button')]
+    .find((candidate) => candidate.textContent?.trim() === label)
+  if (!(match instanceof HTMLButtonElement)) throw new Error(`Button not found: ${label}`)
+  return match
+}
+
+async function click(target: HTMLButtonElement): Promise<void> {
+  await act(async () => {
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await Promise.resolve()
+  })
+}
+
 describe('SkillInsightView', () => {
+  beforeEach(() => {
+    document.documentElement.lang = 'en'
+    document.body.replaceChildren()
+  })
+
   test('renders a concise command card instead of the persisted JSON envelope', () => {
     const text = encodeInsightCommandResult({
       schemaVersion: 1,
@@ -95,5 +140,47 @@ describe('SkillInsightView', () => {
 
     expect(html).toContain('/skill-insight analyze')
     expect(html).toContain('Analyze trace')
+  })
+
+  test('requires confirmation before clearing one analysis and supports cancellation', async () => {
+    const runCommand = vi.fn(async () => {})
+    const insight: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
+    }
+    const { container, root } = await renderInteractive(viewProps(insight, runCommand))
+
+    await click(button(container, 'Clear analysis'))
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
+      'Session history remains unchanged',
+    )
+    await click(button(container, 'Cancel'))
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(runCommand).not.toHaveBeenCalled()
+
+    await click(button(container, 'Clear analysis'))
+    await click(button(container, 'Confirm clear'))
+    expect(runCommand).toHaveBeenCalledWith('/skill-insight clear si-ui')
+    await act(async () => root.unmount())
+  })
+
+  test('uses the explicit confirmed command for clearing all current-session analyses', async () => {
+    const runCommand = vi.fn(async () => {})
+    const insight: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [
+        { analysisId: 'si-ui', status: 'applied', report, artifactDirectory: '/artifacts' },
+        { analysisId: 'si-other', status: 'completed', report: { ...report, analysisId: 'si-other' } },
+      ],
+    }
+    const { container, root } = await renderInteractive(viewProps(insight, runCommand))
+
+    await click(button(container, 'Clear all'))
+    const dialog = container.querySelector('[role="dialog"]')
+    expect(dialog?.textContent).toContain('all 2 analyses')
+    expect(dialog?.textContent).toContain('does not revert applied Skill changes')
+    await click(button(container, 'Confirm clear all'))
+    expect(runCommand).toHaveBeenCalledWith('/skill-insight clear --all --confirm')
+    await act(async () => root.unmount())
   })
 })

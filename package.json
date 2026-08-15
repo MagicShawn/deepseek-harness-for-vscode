@@ -1,6 +1,6 @@
 {
   "name": "deepseek-harness-skill-insight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first DeepSeek Harness plugin for trace analysis and evidence-backed Skill optimization.",
   "license": "MIT",
   "type": "module",

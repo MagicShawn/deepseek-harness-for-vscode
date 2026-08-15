@@ -15,7 +15,7 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.commands.register({
     name: 'skill-insight',
     description: 'analyze this session trace and propose an evidence-backed Skill update',
-    input: { hint: 'analyze|apply|revert|show|list …' },
+    input: { hint: 'analyze|apply|revert|clear|show|list …' },
     recordInput: true,
     handler: invocation => controller.execute(invocation),
   }), 'skill-insight: command')

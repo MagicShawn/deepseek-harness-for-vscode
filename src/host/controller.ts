@@ -80,12 +80,17 @@ function mergeIssues<T extends { code: string }>(first: readonly T[], second: re
 }
 
 function listReports(session: Session): Extract<InsightCommandEnvelope, { type: 'completed' }>[] {
-  return session.events
-    .filter((event) => event.type === 'command/done')
-    .map((event) => event.type === 'command/done'
-      ? decodeInsightCommandResult(event.data.text)
-      : null)
-    .filter((value): value is Extract<InsightCommandEnvelope, { type: 'completed' }> => value?.type === 'completed')
+  const reports = new Map<string, Extract<InsightCommandEnvelope, { type: 'completed' }>>()
+  for (const event of session.events) {
+    if (event.type !== 'command/done') continue
+    const value = decodeInsightCommandResult(event.data.text)
+    if (value?.type === 'completed' && value.report.sessionId === String(session.id)) {
+      reports.set(value.analysisId, value)
+    } else if (value?.type === 'cleared') {
+      for (const analysisId of value.clearedAnalysisIds) reports.delete(analysisId)
+    }
+  }
+  return [...reports.values()]
 }
 
 function operationOf(command: SkillInsightCommand): InsightOperation {
@@ -131,6 +136,8 @@ export class SkillInsightController {
           return await this.executeApply(invocation, command.analysisId)
         case 'revert':
           return await this.executeRevert(invocation, command.analysisId)
+        case 'clear':
+          return await this.executeClear(invocation, command)
         case 'show':
           return this.executeShow(invocation.agent.session, command.analysisId)
         case 'list':
@@ -353,6 +360,40 @@ export class SkillInsightController {
         skillName: restored.skill.name,
         restoredHash: proposal.beforeHash,
         message: `Reverted Skill Insight proposal ${analysisId} for ${restored.skill.name}.`,
+      })
+    })
+  }
+
+  private async executeClear(
+    invocation: CommandInvocation,
+    command: Extract<SkillInsightCommand, { action: 'clear' }>,
+  ): Promise<CommandResult> {
+    return invocation.agent.runMaintenance(async () => {
+      const sessionId = String(invocation.agent.id)
+      const reports = listReports(invocation.agent.session)
+      let analysisIds: string[]
+      if (command.scope === 'analysis') {
+        if (!reports.some(({ analysisId }) => analysisId === command.analysisId)) {
+          throw new Error(`Skill Insight analysis ${command.analysisId} is not active in this session.`)
+        }
+        analysisIds = [command.analysisId]
+      } else {
+        analysisIds = reports.map(({ analysisId }) => analysisId)
+        if (analysisIds.length === 0) {
+          return { kind: 'success', text: 'No active Skill Insight analyses to clear in this session.' }
+        }
+      }
+
+      await Promise.all(analysisIds.map((analysisId) => this.artifacts.removeAnalysis(sessionId, analysisId)))
+      return resultEnvelope('success', {
+        schemaVersion: 1,
+        type: 'cleared',
+        analysisId: analysisIdForCommandId(invocation.commandId),
+        scope: command.scope,
+        clearedAnalysisIds: analysisIds,
+        message: command.scope === 'analysis'
+          ? `Cleared local artifacts for Skill Insight analysis ${analysisIds[0]}. Session history remains unchanged.`
+          : `Cleared local artifacts for ${analysisIds.length} Skill Insight analyses in this session. Session history remains unchanged.`,
       })
     })
   }

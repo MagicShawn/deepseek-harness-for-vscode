@@ -3,7 +3,7 @@ import type { InsightReport } from './types.js'
 const ENVELOPE_MARKER = '[[skill-insight:v1]]'
 const MAX_ENVELOPE_LENGTH = 512 * 1024
 
-export type InsightOperation = 'analyze' | 'apply' | 'revert' | 'command'
+export type InsightOperation = 'analyze' | 'apply' | 'revert' | 'clear' | 'command'
 
 export type InsightCommandEnvelope =
   | {
@@ -35,6 +35,14 @@ export type InsightCommandEnvelope =
     analysisId: string
     skillName: string
     restoredHash: string
+    message: string
+  }
+  | {
+    schemaVersion: 1
+    type: 'cleared'
+    analysisId: string
+    scope: 'analysis' | 'session'
+    clearedAnalysisIds: string[]
     message: string
   }
 
@@ -81,7 +89,7 @@ export function decodeInsightCommandResult(text: unknown): InsightCommandEnvelop
       : null
   }
   if (value.type === 'failed') {
-    return ['analyze', 'apply', 'revert', 'command'].includes(String(value.operation))
+    return ['analyze', 'apply', 'revert', 'clear', 'command'].includes(String(value.operation))
       ? value as unknown as InsightCommandEnvelope
       : null
   }
@@ -94,6 +102,15 @@ export function decodeInsightCommandResult(text: unknown): InsightCommandEnvelop
     return hasText(value, 'skillName') && hasText(value, 'restoredHash')
       ? value as unknown as InsightCommandEnvelope
       : null
+  }
+  if (value.type === 'cleared') {
+    if ((value.scope !== 'analysis' && value.scope !== 'session')
+      || !Array.isArray(value.clearedAnalysisIds)
+      || value.clearedAnalysisIds.length === 0
+      || !value.clearedAnalysisIds.every((item) => typeof item === 'string' && item.length > 0)
+      || new Set(value.clearedAnalysisIds).size !== value.clearedAnalysisIds.length
+      || (value.scope === 'analysis' && value.clearedAnalysisIds.length !== 1)) return null
+    return value as unknown as InsightCommandEnvelope
   }
   return null
 }

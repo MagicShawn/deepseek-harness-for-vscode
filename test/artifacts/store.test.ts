@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
@@ -56,5 +56,67 @@ describe('ArtifactStore', () => {
     const restored = await store.readAnalysis('session/unsafe', 'analysis:unsafe')
     expect(restored.report).toEqual(report)
     expect(restored.skill.rawContent).toBe('# Old\n')
+  })
+
+  test('removes one analysis directory idempotently', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'skill-insight-store-'))
+    const store = new ArtifactStore(root)
+    const directory = store.directoryFor('session-1', 'analysis-1')
+    await mkdir(directory, { recursive: true })
+    await writeFile(join(directory, 'report.json'), '{}\n', 'utf8')
+
+    await expect(store.removeAnalysis('session-1', 'analysis-1')).resolves.toBe(true)
+    await expect(access(directory)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(store.removeAnalysis('session-1', 'analysis-1')).resolves.toBe(false)
+  })
+
+  test('contains unsafe identifiers below the configured artifact root', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'skill-insight-store-'))
+    const root = join(parent, 'artifacts')
+    const outside = join(parent, 'outside.txt')
+    await mkdir(root, { recursive: true })
+    await writeFile(outside, 'keep me', 'utf8')
+    const store = new ArtifactStore(root)
+    const directory = store.directoryFor('../../outside-session', '..\\..\\outside-analysis')
+    await mkdir(directory, { recursive: true })
+
+    await expect(
+      store.removeAnalysis('../../outside-session', '..\\..\\outside-analysis'),
+    ).resolves.toBe(true)
+    await expect(readFile(outside, 'utf8')).resolves.toBe('keep me')
+  })
+
+  test('refuses a symbolic-link analysis directory without touching its target', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'skill-insight-store-'))
+    const root = join(parent, 'artifacts')
+    const target = join(parent, 'external-target')
+    const store = new ArtifactStore(root)
+    const directory = store.directoryFor('session-1', 'analysis-link')
+    await mkdir(join(root, 'session-1'), { recursive: true })
+    await mkdir(target, { recursive: true })
+    await writeFile(join(target, 'keep.txt'), 'keep me', 'utf8')
+    await symlink(target, directory, 'junction')
+
+    await expect(store.removeAnalysis('session-1', 'analysis-link')).rejects.toThrow(
+      /symbolic-link artifact directory/i,
+    )
+    await expect(readFile(join(target, 'keep.txt'), 'utf8')).resolves.toBe('keep me')
+  })
+
+  test('refuses a symbolic-link session directory without touching an external analysis', async () => {
+    const parent = await mkdtemp(join(tmpdir(), 'skill-insight-store-'))
+    const root = join(parent, 'artifacts')
+    const externalSession = join(parent, 'external-session')
+    const externalAnalysis = join(externalSession, 'analysis-1')
+    await mkdir(root, { recursive: true })
+    await mkdir(externalAnalysis, { recursive: true })
+    await writeFile(join(externalAnalysis, 'keep.txt'), 'keep me', 'utf8')
+    await symlink(externalSession, join(root, 'session-1'), 'junction')
+    const store = new ArtifactStore(root)
+
+    await expect(store.removeAnalysis('session-1', 'analysis-1')).rejects.toThrow(
+      /symbolic-link session directory/i,
+    )
+    await expect(readFile(join(externalAnalysis, 'keep.txt'), 'utf8')).resolves.toBe('keep me')
   })
 })

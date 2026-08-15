@@ -19,6 +19,7 @@
 - 只对文件型 `SKILL.md` 执行带 SHA-256 基线校验的应用和回滚。
 - 原样保留 YAML frontmatter 与原始换行风格。
 - 将稳定 JSON 报告和本地快照保存到 `$DSH_HOME/skill-insight/`。
+- 通过显式命令和 UI 确认，安全清理当前 Session 的单条或全部本地分析产物。
 - 通过 Harness 官方 `command/run` 与 `command/done` 生命周期持久化 UI 状态，重启后 Session 仍可安全恢复。
 
 ## 环境要求
@@ -37,7 +38,7 @@ Harness 仍处于预览阶段，插件 API 可能变化。本项目锁定并验�
 ```sh
 npm ci
 npm run package
-dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.0.tgz
+dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.1.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
@@ -91,6 +92,8 @@ dsh plugin --profile web remove deepseek-harness-skill-insight
 | `/skill-insight analyze [--skill <name>] [--mode hybrid\|rules]` | 冻结并分析当前 trace |
 | `/skill-insight apply <analysis-id>` | 应用带哈希保护的提案 |
 | `/skill-insight revert <analysis-id>` | 恢复分析时捕获的原始快照 |
+| `/skill-insight clear <analysis-id>` | 永久删除当前 Session 中某次分析的本地产物 |
+| `/skill-insight clear --all --confirm` | 永久删除当前 Session 中全部有效分析的本地产物 |
 | `/skill-insight show [analysis-id]` | 在命令结果中查看某次分析摘要 |
 | `/skill-insight list` | 列出当前 Session 的分析记录 |
 
@@ -112,6 +115,8 @@ $DSH_HOME/skill-insight/<session-id>/<analysis-id>/
 ```
 
 `report.json` 使用 `schemaVersion: 1`，是未来 VS Code 或其他可视化客户端的稳定集成边界。插件不会把 Harness 原始 trace 复制到该目录，只会保存经过裁剪和脱敏的投影。
+
+清理会永久删除选中分析的本地报告、标准化 trace、diff 与 Skill 快照，并在当前 Session 的界面中隐藏这些分析。它不会删除或改写 Harness Session 事件：命令审计轨迹以及历史命令载荷仍保留在只追加的 Session 日志中。清理也**不会**回滚已经应用到 `SKILL.md` 的提案；如果仍需回滚，请先执行 revert 再清理。其他 Session 不受影响。
 
 ## 隐私与安全
 

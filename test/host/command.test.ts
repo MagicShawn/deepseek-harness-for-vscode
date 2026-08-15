@@ -23,6 +23,24 @@ describe('skill-insight command grammar', () => {
     expect(parseSkillInsightCommand('list')).toEqual({ action: 'list' })
   })
 
+  test('parses explicitly confirmed cleanup commands', () => {
+    expect(parseSkillInsightCommand('clear si-123')).toEqual({
+      action: 'clear',
+      scope: 'analysis',
+      analysisId: 'si-123',
+    })
+    expect(parseSkillInsightCommand('clear --all --confirm')).toEqual({
+      action: 'clear',
+      scope: 'session',
+    })
+  })
+
+  test('requires confirmation for session cleanup and rejects ambiguous cleanup arguments', () => {
+    expect(() => parseSkillInsightCommand('clear --all')).toThrow(/--confirm/)
+    expect(() => parseSkillInsightCommand('clear --confirm --all')).toThrow(/Usage/)
+    expect(() => parseSkillInsightCommand('clear si-123 extra')).toThrow(/Usage/)
+  })
+
   test('rejects unknown flags and missing arguments', () => {
     expect(() => parseSkillInsightCommand('analyze --auto')).toThrow(/Usage/)
     expect(() => parseSkillInsightCommand('apply')).toThrow(/Usage/)

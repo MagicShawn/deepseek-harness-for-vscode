@@ -5,6 +5,8 @@ export const COMMAND_USAGE = [
   '/skill-insight analyze [--skill <name>] [--mode hybrid|rules]',
   '/skill-insight apply <analysis-id>',
   '/skill-insight revert <analysis-id>',
+  '/skill-insight clear <analysis-id>',
+  '/skill-insight clear --all --confirm',
   '/skill-insight show [analysis-id]',
   '/skill-insight list',
 ].join('\n')
@@ -13,6 +15,8 @@ export type SkillInsightCommand =
   | { action: 'analyze'; mode: AnalysisMode; skillName?: string }
   | { action: 'apply'; analysisId: string }
   | { action: 'revert'; analysisId: string }
+  | { action: 'clear'; scope: 'analysis'; analysisId: string }
+  | { action: 'clear'; scope: 'session' }
   | { action: 'show'; analysisId?: string }
   | { action: 'list' }
 
@@ -92,6 +96,17 @@ export function parseSkillInsightCommand(rawInput: string): SkillInsightCommand 
   }
   if ((action === 'apply' || action === 'revert') && tokens.length === 2) {
     return { action, analysisId: tokens[1]! }
+  }
+  if (action === 'clear') {
+    if (tokens.length === 2 && tokens[1] === '--all') {
+      fail('Clearing all current-session analyses requires --confirm.')
+    }
+    if (tokens.length === 2 && tokens[1] && !tokens[1].startsWith('--')) {
+      return { action: 'clear', scope: 'analysis', analysisId: tokens[1] }
+    }
+    if (tokens.length === 3 && tokens[1] === '--all' && tokens[2] === '--confirm') {
+      return { action: 'clear', scope: 'session' }
+    }
   }
   fail(`Invalid ${action} arguments.`)
 }

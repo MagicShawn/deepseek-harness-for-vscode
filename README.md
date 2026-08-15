@@ -19,6 +19,7 @@ This is a native Harness bundle, not a VS Code extension. The Web UI appears as 
 - Applies and reverts only file-backed `SKILL.md` proposals whose SHA-256 baseline still matches.
 - Preserves YAML frontmatter and original newline style.
 - Stores a stable JSON report and local snapshots under `$DSH_HOME/skill-insight/`.
+- Explicitly clears one analysis or all active analyses in the current Session, with UI confirmation and path-safe local deletion.
 - Persists UI state through Harness's official `command/run` and `command/done` lifecycle, so resumed Sessions remain loadable.
 
 ## Requirements
@@ -37,7 +38,7 @@ Harness is still in preview, so its plugin API may change. This package pins the
 ```sh
 npm ci
 npm run package
-dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.0.tgz
+dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.1.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
@@ -91,6 +92,8 @@ Open the **Skill Insight** conversation tab to inspect the report. Hybrid analys
 | `/skill-insight analyze [--skill <name>] [--mode hybrid\|rules]` | Freeze and analyze the current trace |
 | `/skill-insight apply <analysis-id>` | Apply a hash-guarded proposal |
 | `/skill-insight revert <analysis-id>` | Restore the captured pre-change snapshot |
+| `/skill-insight clear <analysis-id>` | Permanently delete one analysis's local artifacts in the current Session |
+| `/skill-insight clear --all --confirm` | Permanently delete all active analysis artifacts in the current Session |
 | `/skill-insight show [analysis-id]` | Summarize one analysis in command output |
 | `/skill-insight list` | List analyses recorded in the Session |
 
@@ -112,6 +115,8 @@ $DSH_HOME/skill-insight/<session-id>/<analysis-id>/
 ```
 
 `report.json` uses `schemaVersion: 1` and is the supported integration boundary for a future VS Code or external visualization. The raw Harness trace is never copied into this directory; only the bounded, redacted projection is stored.
+
+Cleanup permanently removes the selected local report, normalized trace, diff, and Skill snapshots, then hides the cleared analyses from this Session's dashboard. It never deletes or rewrites Harness Session events: the command audit trail and any historical command payload remain in the append-only Session log. Cleanup also does **not** revert a proposal already applied to `SKILL.md`; revert it before cleanup if you still need that operation. Other Sessions are unaffected.
 
 ## Privacy and safety
 

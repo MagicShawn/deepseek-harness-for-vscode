@@ -25,4 +25,59 @@ describe('Skill Insight command result envelope', () => {
     expect(decodeInsightCommandResult('ordinary command output')).toBeNull()
     expect(decodeInsightCommandResult('[[skill-insight:v1]]not-json')).toBeNull()
   })
+
+  test('round-trips analysis- and session-scoped cleanup results', () => {
+    const analysisResult = {
+      schemaVersion: 1 as const,
+      type: 'cleared' as const,
+      analysisId: 'si-clear-command',
+      scope: 'analysis' as const,
+      clearedAnalysisIds: ['si-target'],
+      message: 'Cleared one analysis.',
+    }
+    const sessionResult = {
+      schemaVersion: 1 as const,
+      type: 'cleared' as const,
+      analysisId: 'si-clear-all-command',
+      scope: 'session' as const,
+      clearedAnalysisIds: ['si-one', 'si-two'],
+      message: 'Cleared two analyses.',
+    }
+
+    expect(decodeInsightCommandResult(encodeInsightCommandResult(analysisResult))).toEqual(analysisResult)
+    expect(decodeInsightCommandResult(encodeInsightCommandResult(sessionResult))).toEqual(sessionResult)
+  })
+
+  test('rejects malformed cleanup results', () => {
+    const malformed = [
+      {
+        schemaVersion: 1,
+        type: 'cleared',
+        analysisId: 'si-clear',
+        scope: 'analysis',
+        clearedAnalysisIds: [],
+        message: 'empty',
+      },
+      {
+        schemaVersion: 1,
+        type: 'cleared',
+        analysisId: 'si-clear',
+        scope: 'analysis',
+        clearedAnalysisIds: ['si-one', 'si-two'],
+        message: 'too many',
+      },
+      {
+        schemaVersion: 1,
+        type: 'cleared',
+        analysisId: 'si-clear',
+        scope: 'workspace',
+        clearedAnalysisIds: ['si-one'],
+        message: 'wrong scope',
+      },
+    ]
+
+    for (const value of malformed) {
+      expect(decodeInsightCommandResult(`[[skill-insight:v1]]${JSON.stringify(value)}`)).toBeNull()
+    }
+  })
 })

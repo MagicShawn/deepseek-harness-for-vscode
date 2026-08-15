@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1 — 2026-08-15
+
+- Add explicit cleanup commands for one analysis and for all active analyses in the current Session.
+- Add path-safe, idempotent local artifact deletion with symbolic-link refusal.
+- Add durable cleanup tombstones through the official command lifecycle so cleared analyses stay hidden after Session reload.
+- Add UI cleanup controls, confirmation dialogs, and warnings that cleanup does not revert applied Skill changes.
+- Preserve the append-only Harness Session audit trail and leave every other Session untouched.
+
 ## 0.1.0 — 2026-08-15
 
 - Reframe the project as a native DeepSeek Harness bundle.
