@@ -129,6 +129,9 @@ export type InsightRunStatus = 'running' | 'completed' | 'failed' | 'applied' | 
 export interface InsightRunView {
   analysisId: string
   status: InsightRunStatus
+  skillName?: string
+  requestedMode?: AnalysisMode
+  cutoffSeq?: number
   report?: InsightReport
   artifactDirectory?: string
   error?: string
@@ -137,4 +140,14 @@ export interface InsightRunView {
 export interface InsightViewSnapshot {
   latestAnalysisId: string | null
   runs: InsightRunView[]
+}
+
+declare module '@deepseek-ai/dsh-session/types' {
+  interface SessionEventMap {
+    'skill-insight/started': InsightStartedEvent
+    'skill-insight/completed': InsightCompletedEvent
+    'skill-insight/failed': InsightFailedEvent
+    'skill-insight/applied': InsightAppliedEvent
+    'skill-insight/reverted': InsightRevertedEvent
+  }
 }

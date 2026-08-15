@@ -1,4 +1,5 @@
 import { rm } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import * as esbuild from 'esbuild'
 
 const watch = process.argv.includes('--watch')
@@ -46,14 +47,7 @@ if (watch) {
   await Promise.all([host.watch(), client.watch()])
 } else {
   await Promise.all([esbuild.build(hostOptions), esbuild.build(clientOptions)])
-  await esbuild.build({
-    entryPoints: ['src/index.ts', 'src/client/index.tsx', 'src/shared/types.ts'],
-    outdir: 'lib/types',
-    tsconfig: 'tsconfig.json',
-    platform: 'neutral',
-    format: 'esm',
-    bundle: false,
-    sourcemap: false,
-    logLevel: 'silent',
+  execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.build.json'], {
+    stdio: 'inherit',
   })
 }

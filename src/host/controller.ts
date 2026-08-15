@@ -15,9 +15,7 @@ import { ArtifactStore } from '../artifacts/store.js'
 import type {
   AnalysisMode,
   InsightCompletedEvent,
-  InsightFailedEvent,
   InsightReport,
-  InsightStartedEvent,
 } from '../shared/types.js'
 import {
   applySkillProposal,
@@ -32,24 +30,6 @@ import {
   selectSkillName,
   type SkillInsightCommand,
 } from './command.js'
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    'skill-insight/started': InsightStartedEvent
-    'skill-insight/completed': InsightCompletedEvent
-    'skill-insight/failed': InsightFailedEvent
-    'skill-insight/applied': {
-      analysisId: string
-      skillName: string
-      appliedHash: string
-    }
-    'skill-insight/reverted': {
-      analysisId: string
-      skillName: string
-      restoredHash: string
-    }
-  }
-}
 
 export interface SkillInsightDependencies {
   skills: Pick<SkillRegistry, 'get'>
