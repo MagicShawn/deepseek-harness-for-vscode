@@ -3,6 +3,16 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 interface Manifest {
+  name?: string
+  displayName?: string
+  version?: string
+  publisher?: string
+  icon?: string
+  pricing?: string
+  repository?: { type?: string; url?: string }
+  homepage?: string
+  bugs?: { url?: string }
+  galleryBanner?: { color?: string; theme?: string }
   activationEvents?: string[]
   contributes?: {
     commands?: Array<{ command: string; title: string; icon?: string }>
@@ -18,6 +28,30 @@ async function manifest(): Promise<Manifest> {
 }
 
 describe('extension manifest', () => {
+  it('declares the public Marketplace identity and support metadata', async () => {
+    const value = await manifest()
+    expect(value).toMatchObject({
+      name: 'deepseek-harness-ui',
+      displayName: 'DeepSeek Harness UI (Unofficial)',
+      version: '0.1.1',
+      publisher: 'magicshawn',
+      icon: 'media/icon.png',
+      pricing: 'Free',
+      repository: {
+        type: 'git',
+        url: 'https://github.com/MagicShawn/deepseek-harness-for-vscode.git',
+      },
+      homepage: 'https://github.com/MagicShawn/deepseek-harness-for-vscode#readme',
+      bugs: {
+        url: 'https://github.com/MagicShawn/deepseek-harness-for-vscode/issues',
+      },
+      galleryBanner: {
+        color: '#111827',
+        theme: 'dark',
+      },
+    })
+  })
+
   it('declares startup and both visual activation surfaces', async () => {
     const value = await manifest()
     expect(value.activationEvents).toEqual(expect.arrayContaining([
