@@ -12,11 +12,11 @@ export const COMMAND_USAGE = [
 ].join('\n')
 
 export type SkillInsightCommand =
-  | { action: 'analyze'; mode: AnalysisMode; skillName?: string }
-  | { action: 'apply'; analysisId: string }
-  | { action: 'revert'; analysisId: string }
-  | { action: 'clear'; scope: 'analysis'; analysisId: string }
-  | { action: 'clear'; scope: 'session' }
+  | { action: 'analyze'; mode: AnalysisMode; skillName?: string; origin?: 'ui' }
+  | { action: 'apply'; analysisId: string; origin?: 'ui' }
+  | { action: 'revert'; analysisId: string; origin?: 'ui' }
+  | { action: 'clear'; scope: 'analysis'; analysisId: string; origin?: 'ui' }
+  | { action: 'clear'; scope: 'session'; origin?: 'ui' }
   | { action: 'show'; analysisId?: string }
   | { action: 'list' }
 
@@ -62,7 +62,17 @@ function tokenize(input: string): string[] {
   return tokens
 }
 
-function analysisCommand(tokens: string[]): SkillInsightCommand {
+function extractUiOrigin(tokens: string[]): { tokens: string[]; origin?: 'ui' } {
+  const positions = tokens.flatMap((token, index) => token === '--origin' ? [index] : [])
+  if (positions.length === 0) return { tokens }
+  const position = positions[0]!
+  if (positions.length !== 1 || position !== tokens.length - 2 || tokens[position + 1] !== 'ui') {
+    fail('Expected a single trailing --origin ui marker.')
+  }
+  return { tokens: tokens.slice(0, -2), origin: 'ui' }
+}
+
+function analysisCommand(tokens: string[], origin?: 'ui'): SkillInsightCommand {
   let mode: AnalysisMode = 'hybrid'
   let skillName: string | undefined
   for (let index = 1; index < tokens.length; index += 1) {
@@ -82,30 +92,45 @@ function analysisCommand(tokens: string[]): SkillInsightCommand {
     }
     fail(`Unknown analyze option: ${flag ?? ''}`)
   }
-  return skillName ? { action: 'analyze', mode, skillName } : { action: 'analyze', mode }
+  return {
+    action: 'analyze',
+    mode,
+    ...(skillName === undefined ? {} : { skillName }),
+    ...(origin === undefined ? {} : { origin }),
+  }
 }
 
 export function parseSkillInsightCommand(rawInput: string): SkillInsightCommand {
-  const tokens = tokenize(rawInput)
+  const parsed = extractUiOrigin(tokenize(rawInput))
+  const tokens = parsed.tokens
+  const origin = parsed.origin
   const action = tokens[0]
   if (!action) fail('A subcommand is required.')
-  if (action === 'analyze') return analysisCommand(tokens)
+  if (action === 'analyze') return analysisCommand(tokens, origin)
+  if (origin && action !== 'apply' && action !== 'revert' && action !== 'clear') {
+    fail(`The UI origin is not valid for ${action}.`)
+  }
   if (action === 'list' && tokens.length === 1) return { action: 'list' }
   if (action === 'show' && tokens.length <= 2) {
     return tokens[1] ? { action: 'show', analysisId: tokens[1] } : { action: 'show' }
   }
   if ((action === 'apply' || action === 'revert') && tokens.length === 2) {
-    return { action, analysisId: tokens[1]! }
+    return { action, analysisId: tokens[1]!, ...(origin === undefined ? {} : { origin }) }
   }
   if (action === 'clear') {
     if (tokens.length === 2 && tokens[1] === '--all') {
       fail('Clearing all current-session analyses requires --confirm.')
     }
     if (tokens.length === 2 && tokens[1] && !tokens[1].startsWith('--')) {
-      return { action: 'clear', scope: 'analysis', analysisId: tokens[1] }
+      return {
+        action: 'clear',
+        scope: 'analysis',
+        analysisId: tokens[1],
+        ...(origin === undefined ? {} : { origin }),
+      }
     }
     if (tokens.length === 3 && tokens[1] === '--all' && tokens[2] === '--confirm') {
-      return { action: 'clear', scope: 'session' }
+      return { action: 'clear', scope: 'session', ...(origin === undefined ? {} : { origin }) }
     }
   }
   fail(`Invalid ${action} arguments.`)

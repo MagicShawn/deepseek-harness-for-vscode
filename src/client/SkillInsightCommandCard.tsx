@@ -1,6 +1,7 @@
 import type { CommandRowProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 import { decodeInsightCommandResult } from '../shared/envelope.js'
+import { parseSkillInsightCommand } from '../host/command.js'
 
 const CSS = `
 .si-command-card{display:flex;align-items:center;gap:9px;min-height:34px;padding:7px 10px;border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:9px;background:color-mix(in srgb,currentColor 4%,transparent);font:12px/1.4 var(--vscode-font-family,Inter,system-ui,sans-serif)}
@@ -16,6 +17,12 @@ function compact(value: string): string {
 
 /** Compact renderer keeps the durable JSON result out of the chat transcript. */
 export function SkillInsightCommandCard({ node }: CommandRowProps) {
+  try {
+    const command = parseSkillInsightCommand(node.args ?? '')
+    if ('origin' in command && command.origin === 'ui') return null
+  } catch {
+    // Malformed commands remain visible so failures are still diagnosable.
+  }
   const state = node.outcome === null ? 'running' : node.outcome.kind
   const envelope = decodeInsightCommandResult(node.outcome?.text)
   const summary = node.outcome === null

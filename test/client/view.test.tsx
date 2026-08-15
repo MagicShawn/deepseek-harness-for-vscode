@@ -106,6 +106,24 @@ describe('SkillInsightView', () => {
     expect(html).not.toContain('artifactDirectory')
   })
 
+  test('hides valid visual actions but keeps manual and malformed command rows visible', () => {
+    const node = {
+      kind: 'command', seq: 43, time: 1, commandId: 'cmd-ui', name: 'skill-insight',
+      args: ' analyze --skill demo-skill', outcome: null,
+    }
+    const manual = renderToStaticMarkup(createElement(SkillInsightCommandCard, { node } as never))
+    const visual = renderToStaticMarkup(createElement(SkillInsightCommandCard, {
+      node: { ...node, args: ' analyze --skill demo-skill --origin ui' },
+    } as never))
+    const malformed = renderToStaticMarkup(createElement(SkillInsightCommandCard, {
+      node: { ...node, args: ' analyze --broken --origin ui' },
+    } as never))
+
+    expect(manual).toContain('Skill Insight')
+    expect(visual).toBe('')
+    expect(malformed).toContain('Skill Insight')
+  })
+
   test('renders metrics, evidence, proposal diff, and apply action', () => {
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',

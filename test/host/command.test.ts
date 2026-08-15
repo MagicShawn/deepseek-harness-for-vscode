@@ -35,6 +35,44 @@ describe('skill-insight command grammar', () => {
     })
   })
 
+  test('accepts the private UI origin on visual lifecycle actions', () => {
+    expect(parseSkillInsightCommand('analyze --skill demo-skill --mode rules --origin ui')).toEqual({
+      action: 'analyze',
+      mode: 'rules',
+      skillName: 'demo-skill',
+      origin: 'ui',
+    })
+    expect(parseSkillInsightCommand('apply si-123 --origin ui')).toEqual({
+      action: 'apply',
+      analysisId: 'si-123',
+      origin: 'ui',
+    })
+    expect(parseSkillInsightCommand('revert si-123 --origin ui')).toEqual({
+      action: 'revert',
+      analysisId: 'si-123',
+      origin: 'ui',
+    })
+    expect(parseSkillInsightCommand('clear si-123 --origin ui')).toEqual({
+      action: 'clear',
+      scope: 'analysis',
+      analysisId: 'si-123',
+      origin: 'ui',
+    })
+    expect(parseSkillInsightCommand('clear --all --confirm --origin ui')).toEqual({
+      action: 'clear',
+      scope: 'session',
+      origin: 'ui',
+    })
+  })
+
+  test('keeps manual actions unmarked and rejects invalid UI origins', () => {
+    expect(parseSkillInsightCommand('analyze')).not.toHaveProperty('origin')
+    expect(parseSkillInsightCommand('apply si-123')).not.toHaveProperty('origin')
+    expect(() => parseSkillInsightCommand('analyze --origin extension')).toThrow(/Usage/)
+    expect(() => parseSkillInsightCommand('analyze --origin ui --origin ui')).toThrow(/Usage/)
+    expect(() => parseSkillInsightCommand('apply --origin ui si-123')).toThrow(/Usage/)
+  })
+
   test('requires confirmation for session cleanup and rejects ambiguous cleanup arguments', () => {
     expect(() => parseSkillInsightCommand('clear --all')).toThrow(/--confirm/)
     expect(() => parseSkillInsightCommand('clear --confirm --all')).toThrow(/Usage/)
