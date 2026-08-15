@@ -101,7 +101,7 @@ export function createShellHtml(options: ShellHtmlOptions): string {
     </details>
   </header>
   <main class="surface">
-    <iframe id="harness" title="DeepSeek Harness" hidden></iframe>
+    <iframe id="harness" title="DeepSeek Harness" allow="clipboard-write" hidden></iframe>
     <section id="state" class="state">
       <div class="card">
         <div class="mark" aria-hidden="true">D</div>

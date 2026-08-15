@@ -2,7 +2,7 @@
   "name": "deepseek-harness-ui",
   "displayName": "DeepSeek Harness UI (Unofficial)",
   "description": "Unofficial VS Code visual workspace for the official DeepSeek Harness Web UI.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "magicshawn",
   "icon": "media/icon.png",
   "pricing": "Free",
@@ -133,7 +133,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts",
-    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.1.vsix"
+    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.2.vsix"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

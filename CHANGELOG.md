@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-08-15
+
+- Restore code-block copy buttons inside the embedded Harness UI by delegating clipboard-write permission to its iframe.
+
 ## 0.1.1 — 2026-08-15
 
 - Prepare the extension for its first Visual Studio Marketplace release under publisher `magicshawn`.

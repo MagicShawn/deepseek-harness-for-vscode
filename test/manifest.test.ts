@@ -33,7 +33,7 @@ describe('extension manifest', () => {
     expect(value).toMatchObject({
       name: 'deepseek-harness-ui',
       displayName: 'DeepSeek Harness UI (Unofficial)',
-      version: '0.1.1',
+      version: '0.1.2',
       publisher: 'magicshawn',
       icon: 'media/icon.png',
       pricing: 'Free',

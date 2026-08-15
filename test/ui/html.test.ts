@@ -15,6 +15,22 @@ describe('createShellHtml', () => {
     expect(html).toContain('frame-src http://127.0.0.1:*')
   })
 
+  it('delegates clipboard writes to the embedded Harness UI without granting clipboard reads', () => {
+    const html = createShellHtml({
+      nonce: 'fixed-nonce',
+      locale: 'zh-cn',
+      initialStatus: { state: 'stopped' },
+    })
+    const dom = new JSDOM(html)
+    const permissions = dom.window.document.querySelector('iframe')
+      ?.getAttribute('allow')
+      ?.split(';')
+      .map(value => value.trim()) ?? []
+
+    expect(permissions).toContain('clipboard-write')
+    expect(permissions).not.toContain('clipboard-read')
+  })
+
   it('renders localized loading, ready, and actionable error surfaces from messages', () => {
     const html = createShellHtml({
       nonce: 'fixed-nonce',
