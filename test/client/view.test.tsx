@@ -160,7 +160,7 @@ describe('SkillInsightView', () => {
     expect(html).toContain('Apply proposal')
   })
 
-  test('renders a command-first empty state', () => {
+  test('renders the full visual form in the empty state without a CLI example', () => {
     const conversation = { views: new Map() }
     const props = {
       sessionId: 'session-ui',
@@ -170,8 +170,113 @@ describe('SkillInsightView', () => {
 
     const html = renderToStaticMarkup(createElement(SkillInsightView, props))
 
-    expect(html).toContain('/skill-insight analyze')
-    expect(html).toContain('Analyze trace')
+    expect(html).toContain('New analysis')
+    expect(html).toContain('Start analysis')
+    expect(html).not.toContain('/skill-insight analyze')
+  })
+
+  test('keeps the analysis form collapsed with history and expands it from New analysis', async () => {
+    const loadSkills = vi.fn(async () => [{
+      name: 'demo-skill', description: 'Analyze the demo trace.', modelInvocable: true,
+    }])
+    const insight: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
+      detectedSkillNames: ['demo-skill'],
+    }
+    const { container, root } = await renderInteractive(viewProps(
+      insight,
+      visualActions({ loadSkills }),
+    ))
+
+    expect(container.querySelector('input[aria-label="Search Skills"]')).toBeNull()
+    await click(button(container, 'New analysis'))
+    expect(container.querySelector('input[aria-label="Search Skills"]')).not.toBeNull()
+    expect(loadSkills).toHaveBeenCalledOnce()
+    await act(async () => root.unmount())
+  })
+
+  test('collapses a history analysis form after a successful typed analysis', async () => {
+    const analyze = vi.fn(async () => {})
+    const insight: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
+      detectedSkillNames: ['demo-skill'],
+    }
+    const { container, root } = await renderInteractive(viewProps(
+      insight,
+      visualActions({ analyze }),
+    ))
+
+    await click(button(container, 'New analysis'))
+    await click(button(container, 'Start analysis'))
+    expect(analyze).toHaveBeenCalledWith({ skillName: 'demo-skill', mode: 'hybrid' })
+    expect(container.querySelector('input[aria-label="Search Skills"]')).toBeNull()
+    await act(async () => root.unmount())
+  })
+
+  test('selects a newly projected analysis result automatically', async () => {
+    let insight: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [
+        { analysisId: 'si-ui', status: 'completed', report },
+        {
+          analysisId: 'si-old',
+          status: 'completed',
+          report: { ...report, analysisId: 'si-old', skill: { ...report.skill, name: 'old-skill' } },
+        },
+      ],
+      detectedSkillNames: [],
+    }
+    const conversation = { views: { get: () => insight } }
+    const props = {
+      sessionId: 'session-ui',
+      useSession: (selector: (snapshot: typeof conversation) => unknown) => selector(conversation),
+      actions: visualActions(),
+    } as unknown as ConvViewProps & SkillInsightViewInjected
+    const { container, root } = await renderInteractive(props)
+    const old = [...container.querySelectorAll('.si-history-item')]
+      .find((item) => item.textContent?.includes('old-skill'))
+    if (!(old instanceof HTMLButtonElement)) throw new Error('Old analysis not found')
+    await click(old)
+    expect(old.dataset.active).toBe('true')
+
+    insight = {
+      ...insight,
+      latestAnalysisId: 'si-new',
+      runs: [
+        { analysisId: 'si-new', status: 'running', skillName: 'new-skill' },
+        ...insight.runs,
+      ],
+    }
+    await act(async () => root.render(createElement(SkillInsightView, props)))
+
+    const active = container.querySelector('.si-history-item[data-active="true"]')
+    expect(active?.textContent).toContain('new-skill')
+    await act(async () => root.unmount())
+  })
+
+  test('uses typed actions for applying and reverting proposals', async () => {
+    const apply = vi.fn(async () => {})
+    const revert = vi.fn(async () => {})
+    const completed: InsightViewSnapshot = {
+      latestAnalysisId: 'si-ui',
+      runs: [{ analysisId: 'si-ui', status: 'completed', report }],
+      detectedSkillNames: [],
+    }
+    let rendered = await renderInteractive(viewProps(completed, visualActions({ apply })))
+    await click(button(rendered.container, 'Apply proposal'))
+    expect(apply).toHaveBeenCalledWith('si-ui')
+    await act(async () => rendered.root.unmount())
+
+    const applied: InsightViewSnapshot = {
+      ...completed,
+      runs: [{ analysisId: 'si-ui', status: 'applied', report }],
+    }
+    rendered = await renderInteractive(viewProps(applied, visualActions({ revert })))
+    await click(button(rendered.container, 'Revert change'))
+    expect(revert).toHaveBeenCalledWith('si-ui')
+    await act(async () => rendered.root.unmount())
   })
 
   test('requires confirmation before clearing one analysis and supports cancellation', async () => {
