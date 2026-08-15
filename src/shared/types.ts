@@ -111,4 +111,5 @@ export interface InsightRunView {
 export interface InsightViewSnapshot {
   latestAnalysisId: string | null
   runs: InsightRunView[]
+  detectedSkillNames: string[]
 }

@@ -53,15 +53,78 @@ export interface InsightClearConversationNode extends ConversationViewNode {
   }
 }
 
-export type InsightConversationNode = InsightRunConversationNode | InsightClearConversationNode
+export interface InsightSkillInvocationProjectionState {
+  anchorSeq: number
+  skillName: string
+}
+
+export interface InsightSkillInvocationConversationNode extends ConversationViewNode {
+  readonly kind: 'skill-insight-skill-invocation'
+  readonly target: 'skill-insight'
+  readonly anchorSeq: number
+  readonly data: {
+    skillName: string
+  }
+}
+
+export type InsightConversationNode =
+  | InsightRunConversationNode
+  | InsightClearConversationNode
+  | InsightSkillInvocationConversationNode
 
 type InsightRunEnvelope = Exclude<InsightCommandEnvelope, { type: 'cleared' }>
 
 const EMPTY_RUNS: readonly InsightRunView[] = []
+const EMPTY_SKILL_NAMES: readonly string[] = []
 
 export const EMPTY_INSIGHT_SNAPSHOT: InsightViewSnapshot = {
   latestAnalysisId: null,
   runs: EMPTY_RUNS as InsightRunView[],
+  detectedSkillNames: EMPTY_SKILL_NAMES as string[],
+}
+
+function skillNameFromEvent(
+  event: Parameters<ConversationNodeDefinition<InsightSkillInvocationProjectionState>['match']>[0],
+): string | undefined {
+  if (event.type !== 'tool/call' || event.data.name !== 'skill') return undefined
+  try {
+    const parsed: unknown = JSON.parse(event.data.arguments)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+    const name = (parsed as Record<string, unknown>).name
+    return typeof name === 'string' && name.trim() ? name.trim() : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const insightSkillInvocationDefinition:
+ConversationNodeDefinition<InsightSkillInvocationProjectionState> = {
+  kind: 'skill-insight-skill-invocation',
+  target: 'skill-insight',
+  match: (event) => {
+    const skillName = skillNameFromEvent(event)
+    return skillName === undefined || event.type !== 'tool/call'
+      ? null
+      : { id: String(event.data.callId), role: 'start' as const }
+  },
+  start: (_context, match) => {
+    const skillName = skillNameFromEvent(match.event)
+    if (skillName === undefined) {
+      throw new Error('skill-insight-skill-invocation start requires a valid Skill tool call')
+    }
+    return { anchorSeq: match.event.seq, skillName }
+  },
+  update: (context) => context.state,
+  buildViewNode: (context) => context.state
+    ? {
+      key: context.key,
+      kind: 'skill-insight-skill-invocation',
+      id: context.id,
+      target: 'skill-insight',
+      anchorSeq: context.state.anchorSeq,
+      data: { skillName: context.state.skillName },
+    } satisfies InsightSkillInvocationConversationNode
+    : null,
 }
 
 function clearError(run: InsightRunView): InsightRunView {
@@ -269,11 +332,14 @@ export class InsightSnapshotBuilder implements ConversationViewBuilder<
   private snapshot(): InsightViewSnapshot {
     const clearedAnalysisIds = new Set<string>()
     const runs: InsightRunConversationNode[] = []
+    const skillInvocations: InsightSkillInvocationConversationNode[] = []
     for (const node of this.nodes.values()) {
       if (node.kind === 'skill-insight-clear') {
         for (const analysisId of node.data.clearedAnalysisIds) clearedAnalysisIds.add(analysisId)
-      } else {
+      } else if (node.kind === 'skill-insight-run') {
         runs.push(node)
+      } else {
+        skillInvocations.push(node)
       }
     }
     const ordered = runs
@@ -281,9 +347,15 @@ export class InsightSnapshotBuilder implements ConversationViewBuilder<
       .sort(
       (left, right) => right.anchorSeq - left.anchorSeq || right.id.localeCompare(left.id),
       )
+    const detectedSkillNames = [...new Set(
+      skillInvocations
+        .sort((left, right) => right.anchorSeq - left.anchorSeq || right.id.localeCompare(left.id))
+        .map((node) => node.data.skillName),
+    )]
     return {
       latestAnalysisId: ordered[0]?.data.analysisId ?? null,
       runs: ordered.map((node) => node.data),
+      detectedSkillNames,
     }
   }
 }
@@ -297,6 +369,7 @@ export const insightViewDefinition: ConversationViewDefinition<
 }
 
 export function registerInsightProjection(ctx: Context): void {
+  ctx.conversationEvents.register(insightSkillInvocationDefinition)
   ctx.conversationEvents.register(insightEventDefinition)
   ctx.conversationEvents.register(insightClearEventDefinition)
   ctx.conversationViews.register(insightViewDefinition)

@@ -141,6 +141,7 @@ describe('SkillInsightView', () => {
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',
       runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
+      detectedSkillNames: [],
     }
     const conversation = { views: new Map([['skill-insight', insight]]) }
     const props = {
@@ -178,6 +179,7 @@ describe('SkillInsightView', () => {
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',
       runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
+      detectedSkillNames: [],
     }
     const { container, root } = await renderInteractive(viewProps(insight, visualActions({ clear })))
 
@@ -203,6 +205,7 @@ describe('SkillInsightView', () => {
         { analysisId: 'si-ui', status: 'applied', report, artifactDirectory: '/artifacts' },
         { analysisId: 'si-other', status: 'completed', report: { ...report, analysisId: 'si-other' } },
       ],
+      detectedSkillNames: [],
     }
     const { container, root } = await renderInteractive(viewProps(insight, visualActions({ clearAll })))
 

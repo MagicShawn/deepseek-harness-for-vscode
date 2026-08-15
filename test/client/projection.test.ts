@@ -11,9 +11,11 @@ import {
   InsightSnapshotBuilder,
   insightClearEventDefinition,
   insightEventDefinition,
+  insightSkillInvocationDefinition,
   type InsightClearConversationNode,
   type InsightConversationNode,
   type InsightProjectionState,
+  type InsightSkillInvocationConversationNode,
 } from '../../src/client/projection.js'
 import {
   analysisIdForCommandId,
@@ -54,6 +56,44 @@ const report: InsightReport = {
 }
 
 describe('Skill Insight client projection', () => {
+  test('materializes valid official Skill tool calls and ignores unrelated or malformed calls', () => {
+    const invoked = event('tool/call', 3, {
+      turn: 1,
+      step: 1,
+      callId: 'call-skill' as never,
+      name: 'skill',
+      arguments: '{"name":"demo-skill"}',
+    })
+    const matched = insightSkillInvocationDefinition.match(invoked)
+    expect(matched).toEqual({ id: 'call-skill', role: 'start' })
+    const state = insightSkillInvocationDefinition.start(
+      {} as never,
+      match(invoked, 'start'),
+      { previous: () => undefined },
+    )
+    const node = insightSkillInvocationDefinition.buildViewNode?.({
+      key: 'skill-call',
+      kind: 'skill-insight-skill-invocation',
+      id: 'call-skill',
+      matches: [match(invoked, 'start')],
+      start: match(invoked, 'start'),
+      state,
+      current: new Map(),
+    }) as InsightSkillInvocationConversationNode
+
+    expect(node.data.skillName).toBe('demo-skill')
+    expect(node.anchorSeq).toBe(3)
+    expect(insightSkillInvocationDefinition.match(event('tool/call', 4, {
+      turn: 1, step: 1, callId: 'call-fs' as never, name: 'read_file', arguments: '{}',
+    }))).toBeNull()
+    expect(insightSkillInvocationDefinition.match(event('tool/call', 5, {
+      turn: 1, step: 1, callId: 'call-bad' as never, name: 'skill', arguments: '{bad',
+    }))).toBeNull()
+    expect(insightSkillInvocationDefinition.match(event('tool/call', 6, {
+      turn: 1, step: 1, callId: 'call-empty' as never, name: 'skill', arguments: '{"name":" "}',
+    }))).toBeNull()
+  })
+
   test('folds official command lifecycle events into one durable run', () => {
     const started = event('command/run', 4, {
       commandId: analysisCommandId, name: 'skill-insight', args: ' analyze --skill demo-skill --mode rules',
@@ -130,6 +170,32 @@ describe('Skill Insight client projection', () => {
 
     expect(snapshot.latestAnalysisId).toBe('si-2')
     expect(snapshot.runs.map((run) => run.analysisId)).toEqual(['si-2', analysisId])
+    expect(snapshot.detectedSkillNames).toEqual([])
+  })
+
+  test('orders current-session Skills by latest invocation and removes duplicates', () => {
+    const builder = new InsightSnapshotBuilder()
+    const nodes = [
+      { key: 'skill-a-old', id: 'call-a-old', anchorSeq: 2, skillName: 'skill-a' },
+      { key: 'skill-b', id: 'call-b', anchorSeq: 8, skillName: 'skill-b' },
+      { key: 'skill-a-new', id: 'call-a-new', anchorSeq: 11, skillName: 'skill-a' },
+    ].map(({ key, id, anchorSeq, skillName }) => ({
+      key,
+      kind: 'skill-insight-skill-invocation' as const,
+      id,
+      target: 'skill-insight' as const,
+      anchorSeq,
+      data: { skillName },
+    }))
+
+    const snapshot = builder.replace({
+      nodes,
+      timeline: { turnOrder: [], turns: new Map() },
+    })
+
+    expect(snapshot.latestAnalysisId).toBeNull()
+    expect(snapshot.runs).toEqual([])
+    expect(snapshot.detectedSkillNames).toEqual(['skill-a', 'skill-b'])
   })
 
   test('materializes a cleanup result as a dedicated tombstone node', () => {
