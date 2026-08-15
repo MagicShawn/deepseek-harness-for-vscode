@@ -12,6 +12,12 @@ import type {
   InsightRunView,
   InsightViewSnapshot,
 } from '../shared/types.js'
+import {
+  analysisIdForCommandId,
+  decodeInsightCommandResult,
+  type InsightCommandEnvelope,
+} from '../shared/envelope.js'
+import { parseSkillInsightCommand } from '../host/command.js'
 
 declare module '@deepseek-ai/dsh-client-runtime/client' {
   interface ConversationViewSnapshotMap {
@@ -37,89 +43,130 @@ export const EMPTY_INSIGHT_SNAPSHOT: InsightViewSnapshot = {
   runs: EMPTY_RUNS as InsightRunView[],
 }
 
+function clearError(run: InsightRunView): InsightRunView {
+  const value = { ...run }
+  delete value.error
+  return value
+}
+
 function updateState(
   state: InsightProjectionState,
   event: Parameters<ConversationNodeDefinition<InsightProjectionState>['update']>[1]['event'],
 ): InsightProjectionState {
-  switch (event.type) {
-    case 'skill-insight/completed':
-      return {
-        anchorSeq: event.seq,
-        run: {
-          analysisId: event.data.report.analysisId,
-          status: 'completed',
-          skillName: event.data.report.skill.name,
-          requestedMode: event.data.report.requestedMode,
-          cutoffSeq: event.data.report.cutoffSeq,
-          report: event.data.report,
-          artifactDirectory: event.data.artifactDirectory,
-        },
-      }
-    case 'skill-insight/failed':
-      return {
-        anchorSeq: event.seq,
-        run: { ...state.run, status: 'failed', error: event.data.message },
-      }
-    case 'skill-insight/applied':
-      return {
-        anchorSeq: event.seq,
-        run: { ...state.run, status: 'applied', skillName: event.data.skillName },
-      }
-    case 'skill-insight/reverted':
-      return {
-        anchorSeq: event.seq,
-        run: { ...state.run, status: 'reverted', skillName: event.data.skillName },
-      }
-    default:
-      return state
+  if (event.type === 'command/run') {
+    return { anchorSeq: event.seq, run: clearError(state.run) }
+  }
+  if (event.type !== 'command/done') return state
+  const envelope = decodeInsightCommandResult(event.data.text)
+  return envelope === null ? state : stateFromEnvelope(envelope, event.seq, state)
+}
+
+function stateFromEnvelope(
+  envelope: InsightCommandEnvelope,
+  anchorSeq: number,
+  previous?: InsightProjectionState,
+): InsightProjectionState {
+  if (envelope.type === 'completed') {
+    return {
+      anchorSeq,
+      run: {
+        analysisId: envelope.report.analysisId,
+        status: 'completed',
+        skillName: envelope.report.skill.name,
+        requestedMode: envelope.report.requestedMode,
+        cutoffSeq: envelope.report.cutoffSeq,
+        report: envelope.report,
+        artifactDirectory: envelope.artifactDirectory,
+      },
+    }
+  }
+  const base = previous?.run ?? { analysisId: envelope.analysisId, status: 'running' as const }
+  const clean = clearError(base)
+  if (envelope.type === 'failed') {
+    const status = envelope.operation === 'analyze' || envelope.operation === 'command' || !base.report
+      ? 'failed'
+      : base.status
+    return { anchorSeq, run: { ...base, status, error: envelope.message } }
+  }
+  return {
+    anchorSeq,
+    run: {
+      ...clean,
+      status: envelope.type,
+      skillName: envelope.skillName,
+    },
+  }
+}
+
+function commandMatch(event: Parameters<ConversationNodeDefinition<InsightProjectionState>['match']>[0]) {
+  if (event.type === 'command/done') {
+    const envelope = decodeInsightCommandResult(event.data.text)
+    return envelope === null ? null : { id: envelope.analysisId, role: 'update' as const }
+  }
+  if (event.type !== 'command/run' || event.data.name !== 'skill-insight') return null
+  try {
+    const command = parseSkillInsightCommand(event.data.args ?? '')
+    if (command.action === 'analyze') {
+      return { id: analysisIdForCommandId(event.data.commandId), role: 'start' as const }
+    }
+    if (command.action === 'apply' || command.action === 'revert') {
+      return { id: command.analysisId, role: 'update' as const }
+    }
+    return null
+  } catch {
+    return { id: analysisIdForCommandId(event.data.commandId), role: 'start' as const }
   }
 }
 
 export const insightEventDefinition: ConversationNodeDefinition<InsightProjectionState> = {
   kind: 'skill-insight-run',
   target: 'skill-insight',
-  match: event => {
-    if (event.type === 'skill-insight/started') {
-      return { id: event.data.analysisId, role: 'start' }
-    }
-    if (
-      event.type === 'skill-insight/completed' ||
-      event.type === 'skill-insight/failed' ||
-      event.type === 'skill-insight/applied' ||
-      event.type === 'skill-insight/reverted'
-    ) {
-      const analysisId = event.type === 'skill-insight/completed'
-        ? event.data.report.analysisId
-        : event.data.analysisId
-      return { id: analysisId, role: 'update' }
-    }
-    return null
-  },
+  match: commandMatch,
   start: (_context, match) => {
-    if (match.event.type !== 'skill-insight/started') {
-      throw new Error('skill-insight-run start requires skill-insight/started')
+    if (match.event.type !== 'command/run') {
+      throw new Error('skill-insight-run start requires command/run')
+    }
+    let skillName: string | undefined
+    let requestedMode: InsightRunView['requestedMode']
+    try {
+      const command = parseSkillInsightCommand(match.event.data.args ?? '')
+      if (command.action === 'analyze') {
+        skillName = command.skillName
+        requestedMode = command.mode
+      }
+    } catch {
+      // Invalid syntax still receives the paired, durable failed result.
     }
     return {
       anchorSeq: match.event.seq,
       run: {
-        analysisId: match.event.data.analysisId,
+        analysisId: analysisIdForCommandId(match.event.data.commandId),
         status: 'running',
-        skillName: match.event.data.skillName,
-        requestedMode: match.event.data.requestedMode,
-        cutoffSeq: match.event.data.cutoffSeq,
+        ...skillName === undefined ? {} : { skillName },
+        ...requestedMode === undefined ? {} : { requestedMode },
+        cutoffSeq: match.event.seq,
       },
     }
   },
   update: (context, match) => updateState(context.state, match.event),
   buildViewNode: (context: ConversationNodeContext<InsightProjectionState>) => {
-    if (!context.state) return null
+    let state = context.state
+    if (!state) {
+      const settled = context.matches.findLast(match => match.event.type === 'command/done'
+        && decodeInsightCommandResult(match.event.data.text) !== null)
+      if (settled?.event.type === 'command/done') {
+        const envelope = decodeInsightCommandResult(settled.event.data.text)
+        if (envelope) state = stateFromEnvelope(envelope, settled.event.seq)
+      }
+    }
+    if (!state) return null
     return {
       key: context.key,
       kind: 'skill-insight-run',
       id: context.id,
       target: 'skill-insight',
-      anchorSeq: context.state.anchorSeq,
-      data: context.state.run,
+      anchorSeq: state.anchorSeq,
+      data: state.run,
     } satisfies InsightConversationNode
   },
 }

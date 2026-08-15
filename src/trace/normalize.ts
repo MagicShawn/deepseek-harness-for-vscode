@@ -195,7 +195,7 @@ export function normalizeTrace(
   const maxStringLength = Math.max(1, options.maxStringLength ?? DEFAULT_MAX_STRING_LENGTH)
   const eligible = input.filter(
     (event) =>
-      !event.type.startsWith('skill-insight/') && !event.type.startsWith('command/'),
+      !event.type.startsWith('command/'),
   )
   const selected = eligible.slice(-maxEvents)
   const events = selected.map((event) => normalizeEvent(event, maxStringLength))

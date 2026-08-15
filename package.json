@@ -27,8 +27,8 @@
       "default": "./lib/client.js"
     },
     "./shared": {
-      "types": "./lib/types/shared/types.d.ts",
-      "default": "./lib/shared/types.js"
+      "types": "./lib/types/shared/index.d.ts",
+      "default": "./lib/shared/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -38,7 +38,8 @@
     "README.md",
     "README.zh-CN.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "media/skill-insight-dashboard.png"
   ],
   "dsh": {
     "bundle": {
@@ -59,7 +60,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test",
-    "package": "npm run build && npm pack"
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
+    "prepare": "npm run build",
+    "package": "npm pack"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

@@ -5,6 +5,8 @@ import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/clie
 import { describe, expect, test } from 'vitest'
 
 import { SkillInsightView, type SkillInsightViewInjected } from '../../src/client/SkillInsightView.js'
+import { SkillInsightCommandCard } from '../../src/client/SkillInsightCommandCard.js'
+import { encodeInsightCommandResult } from '../../src/shared/envelope.js'
 import type { InsightReport, InsightViewSnapshot } from '../../src/shared/types.js'
 
 const report: InsightReport = {
@@ -38,6 +40,27 @@ const report: InsightReport = {
 }
 
 describe('SkillInsightView', () => {
+  test('renders a concise command card instead of the persisted JSON envelope', () => {
+    const text = encodeInsightCommandResult({
+      schemaVersion: 1,
+      type: 'completed',
+      analysisId: 'si-ui',
+      report,
+      artifactDirectory: '/artifacts',
+      message: 'Analysis completed for demo-skill.',
+    })
+    const html = renderToStaticMarkup(createElement(SkillInsightCommandCard, {
+      node: {
+        kind: 'command', seq: 43, time: 1, commandId: 'cmd-ui', name: 'skill-insight',
+        args: ' analyze', outcome: { kind: 'success', text },
+      },
+    } as never))
+
+    expect(html).toContain('Analysis completed for demo-skill.')
+    expect(html).not.toContain('[[skill-insight:v1]]')
+    expect(html).not.toContain('artifactDirectory')
+  })
+
   test('renders metrics, evidence, proposal diff, and apply action', () => {
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',

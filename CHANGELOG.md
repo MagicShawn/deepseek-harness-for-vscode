@@ -1,17 +1,12 @@
 # Changelog
 
-## 0.1.1 — 2026-08-15
+## 0.1.0 — 2026-08-15
 
-- Prepare the extension for its first Visual Studio Marketplace release under publisher `magicshawn`.
-- Add public repository, support, pricing, gallery, and Marketplace icon metadata.
-- Add an interface demonstration image to the English and Chinese Marketplace documentation.
-
-## 0.1.0 — 2026-08-14
-
-- Embed the official DeepSeek Harness Web UI in a VS Code sidebar and editor panel.
-- Add managed, external, and automatic runtime modes.
-- Add authenticated loopback HTTP/SSE/WebSocket proxying.
-- Add selection and whole-file context delivery with clipboard fallback.
-- Add safe local file navigation and VS Code diff commands.
-- Add lifecycle commands, status bar, logs, settings, bilingual shell copy, and theme adaptation.
-
+- Reframe the project as a native DeepSeek Harness bundle.
+- Add explicit `/skill-insight` analyze, apply, revert, show, and list commands.
+- Add bounded trace normalization, local redaction, deterministic findings, and hybrid model fallback.
+- Add file-backed Skill proposals with frontmatter preservation and SHA-256 apply/revert guards.
+- Add versioned local JSON/Markdown artifacts and Skill snapshots.
+- Add a Harness `conversation.view` dashboard with analysis history, metrics, evidence, diff, and lifecycle actions.
+- Persist projection data exclusively through the official command lifecycle and render a compact command card.
+- Add Host, Client, UI, browser-bundle, artifact, safety, and command integration tests.

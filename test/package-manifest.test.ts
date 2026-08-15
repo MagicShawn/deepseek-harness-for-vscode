@@ -31,4 +31,8 @@ describe('Harness plugin package manifest', () => {
       '@deepseek-ai/dsh-client-ui-conversation',
     ])
   })
+
+  test('exports the browser-safe report and command-envelope contract', () => {
+    expect(pkg.exports?.['./shared']?.default).toBe('./lib/shared/index.js')
+  })
 })

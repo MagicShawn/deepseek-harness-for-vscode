@@ -4,12 +4,17 @@ import type { ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/clien
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 import { SkillInsightView, type SkillInsightViewInjected } from './SkillInsightView.js'
+import { SkillInsightCommandCard } from './SkillInsightCommandCard.js'
 import { registerInsightProjection } from './projection.js'
 
 export const inject = ['slots', 'conversationEvents', 'conversationViews', 'sessions']
 
 export function apply(ctx: Context): void {
   registerInsightProjection(ctx)
+  ctx.slots.inject('conversation.chat.commandview', () => ctx.slots.register({
+    name: 'conversation.chat.commandview',
+    key: 'skill-insight',
+  }, SkillInsightCommandCard))
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
     id: 'skill-insight',

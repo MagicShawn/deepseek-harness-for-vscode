@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import {
@@ -12,11 +11,14 @@ import type { SkillDefinition, SkillRegistry } from '@deepseek-ai/dsh-skill'
 
 import { analyzeWithModel } from '../analysis/model.js'
 import { ArtifactStore } from '../artifacts/store.js'
-import type {
-  AnalysisMode,
-  InsightCompletedEvent,
-  InsightReport,
-} from '../shared/types.js'
+import {
+  analysisIdForCommandId,
+  decodeInsightCommandResult,
+  encodeInsightCommandResult,
+  type InsightCommandEnvelope,
+  type InsightOperation,
+} from '../shared/envelope.js'
+import type { AnalysisMode, InsightReport } from '../shared/types.js'
 import {
   applySkillProposal,
   createSkillProposal,
@@ -77,10 +79,25 @@ function mergeIssues<T extends { code: string }>(first: readonly T[], second: re
   })
 }
 
-function listReports(session: Session): InsightCompletedEvent[] {
+function listReports(session: Session): Extract<InsightCommandEnvelope, { type: 'completed' }>[] {
   return session.events
-    .filter((event) => event.type === 'skill-insight/completed')
-    .map((event) => event.data)
+    .filter((event) => event.type === 'command/done')
+    .map((event) => event.type === 'command/done'
+      ? decodeInsightCommandResult(event.data.text)
+      : null)
+    .filter((value): value is Extract<InsightCommandEnvelope, { type: 'completed' }> => value?.type === 'completed')
+}
+
+function operationOf(command: SkillInsightCommand): InsightOperation {
+  return command.action === 'show' || command.action === 'list' ? 'command' : command.action
+}
+
+function resultEnvelope(
+  kind: CommandResult['kind'],
+  envelope: InsightCommandEnvelope,
+): CommandResult {
+  const text = encodeInsightCommandResult(envelope)
+  return kind === 'success' ? { kind, text } : { kind, text }
 }
 
 export class SkillInsightController {
@@ -92,11 +109,18 @@ export class SkillInsightController {
   }
 
   async execute(invocation: CommandInvocation): Promise<CommandResult> {
+    const fallbackAnalysisId = analysisIdForCommandId(invocation.commandId)
     let command: SkillInsightCommand
     try {
       command = parseSkillInsightCommand(invocation.rawInput)
     } catch (error) {
-      return { kind: 'error', text: message(error) }
+      return resultEnvelope('error', {
+        schemaVersion: 1,
+        type: 'failed',
+        analysisId: fallbackAnalysisId,
+        operation: 'command',
+        message: message(error),
+      })
     }
 
     try {
@@ -113,7 +137,16 @@ export class SkillInsightController {
           return this.executeList(invocation.agent.session)
       }
     } catch (error) {
-      return { kind: 'error', text: message(error) }
+      const analysisId = command.action === 'apply' || command.action === 'revert'
+        ? command.analysisId
+        : fallbackAnalysisId
+      return resultEnvelope('error', {
+        schemaVersion: 1,
+        type: 'failed',
+        analysisId,
+        operation: operationOf(command),
+        message: message(error),
+      })
     }
   }
 
@@ -123,7 +156,7 @@ export class SkillInsightController {
   ): Promise<CommandResult> {
     const sessionKey = String(invocation.agent.id)
     if (this.activeSessions.has(sessionKey)) {
-      return { kind: 'error', text: 'A Skill Insight analysis is already running for this session.' }
+      throw new Error('A Skill Insight analysis is already running for this session.')
     }
     this.activeSessions.add(sessionKey)
     try {
@@ -147,13 +180,7 @@ export class SkillInsightController {
     const trace = normalizeTrace(sourceEvents(agent.session, cutoffSeq))
     trace.cutoffSeq = cutoffSeq
     const skillName = selectSkillName(explicitSkill, trace.invokedSkills)
-    const analysisId = `si-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`
-    const started = agent.session.append('skill-insight/started', {
-      analysisId,
-      cutoffSeq,
-      requestedMode,
-      skillName,
-    })
+    const analysisId = analysisIdForCommandId(invocation.commandId)
 
     try {
       const skill = await this.dependencies.skills.get(skillName, {
@@ -212,17 +239,16 @@ export class SkillInsightController {
         warnings,
       }
       const artifactDirectory = await this.artifacts.writeAnalysis({ report, trace, skill: snapshot })
-      const completed = agent.session.append('skill-insight/completed', { report, artifactDirectory })
-      return {
-        kind: 'success',
-        text: `Skill Insight completed for ${skillName}: ${issues.length} issue(s).${proposal ? ' Review the proposal before applying it.' : ''}`,
-        sourceEventSeq: completed.seq,
-      }
+      return resultEnvelope('success', {
+        schemaVersion: 1,
+        type: 'completed',
+        analysisId,
+        report,
+        artifactDirectory,
+        message: `Skill Insight completed for ${skillName}: ${issues.length} issue(s).${proposal ? ' Review the proposal before applying it.' : ''}`,
+      })
     } catch (error) {
-      agent.session.append('skill-insight/failed', { analysisId, message: message(error) })
-      return { kind: 'error', text: `Skill Insight failed: ${message(error)}` }
-    } finally {
-      void started
+      throw new Error(`Skill Insight failed: ${message(error)}`, { cause: error })
     }
   }
 
@@ -300,16 +326,14 @@ export class SkillInsightController {
       const proposal = restored.report.proposal
       if (!proposal) throw new Error('This analysis has no model-generated proposal to apply.')
       await applySkillProposal(restored.skill, proposal)
-      const event = invocation.agent.session.append('skill-insight/applied', {
+      return resultEnvelope('success', {
+        schemaVersion: 1,
+        type: 'applied',
         analysisId,
         skillName: restored.skill.name,
         appliedHash: proposal.afterHash,
+        message: `Applied Skill Insight proposal ${analysisId} to ${restored.skill.name}.`,
       })
-      return {
-        kind: 'success',
-        text: `Applied Skill Insight proposal ${analysisId} to ${restored.skill.name}.`,
-        sourceEventSeq: event.seq,
-      }
     })
   }
 
@@ -322,16 +346,14 @@ export class SkillInsightController {
       const proposal = restored.report.proposal
       if (!proposal) throw new Error('This analysis has no proposal to revert.')
       await revertSkillProposal(restored.skill, proposal)
-      const event = invocation.agent.session.append('skill-insight/reverted', {
+      return resultEnvelope('success', {
+        schemaVersion: 1,
+        type: 'reverted',
         analysisId,
         skillName: restored.skill.name,
         restoredHash: proposal.beforeHash,
+        message: `Reverted Skill Insight proposal ${analysisId} for ${restored.skill.name}.`,
       })
-      return {
-        kind: 'success',
-        text: `Reverted Skill Insight proposal ${analysisId} for ${restored.skill.name}.`,
-        sourceEventSeq: event.seq,
-      }
     })
   }
 

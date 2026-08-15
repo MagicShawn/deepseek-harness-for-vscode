@@ -5,4 +5,5 @@ coverage/
 .worktrees/
 /docs/superpowers/
 *.log
+*.tgz
 .DS_Store

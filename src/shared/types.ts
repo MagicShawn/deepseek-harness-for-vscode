@@ -95,35 +95,6 @@ export interface InsightReport {
   warnings: string[]
 }
 
-export interface InsightStartedEvent {
-  analysisId: string
-  cutoffSeq: number
-  requestedMode: AnalysisMode
-  skillName: string
-}
-
-export interface InsightCompletedEvent {
-  report: InsightReport
-  artifactDirectory: string
-}
-
-export interface InsightFailedEvent {
-  analysisId: string
-  message: string
-}
-
-export interface InsightAppliedEvent {
-  analysisId: string
-  skillName: string
-  appliedHash: string
-}
-
-export interface InsightRevertedEvent {
-  analysisId: string
-  skillName: string
-  restoredHash: string
-}
-
 export type InsightRunStatus = 'running' | 'completed' | 'failed' | 'applied' | 'reverted'
 
 export interface InsightRunView {
@@ -140,14 +111,4 @@ export interface InsightRunView {
 export interface InsightViewSnapshot {
   latestAnalysisId: string | null
   runs: InsightRunView[]
-}
-
-declare module '@deepseek-ai/dsh-session/types' {
-  interface SessionEventMap {
-    'skill-insight/started': InsightStartedEvent
-    'skill-insight/completed': InsightCompletedEvent
-    'skill-insight/failed': InsightFailedEvent
-    'skill-insight/applied': InsightAppliedEvent
-    'skill-insight/reverted': InsightRevertedEvent
-  }
 }

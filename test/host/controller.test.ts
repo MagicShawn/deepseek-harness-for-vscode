@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest'
 
 import { ArtifactStore } from '../../src/artifacts/store.js'
 import { SkillInsightController } from '../../src/host/controller.js'
+import { decodeInsightCommandResult } from '../../src/shared/envelope.js'
 
 interface FakeEvent {
   type: string
@@ -113,24 +114,27 @@ describe('SkillInsightController', () => {
     const analyzed = await controller.execute(invocation(agent, events, 'analyze', 'cmd-1'))
 
     expect(analyzed.kind).toBe('success')
-    const completed = events.find((event) => event.type === 'skill-insight/completed')
-    const report = (completed?.data.report as { analysisId?: string; cutoffSeq?: number; proposal?: unknown })
+    const completed = decodeInsightCommandResult(analyzed.text)
+    expect(completed?.type).toBe('completed')
+    if (!completed || completed.type !== 'completed') throw new Error('Expected a completed analysis envelope.')
+    const report = completed.report
     expect(report.cutoffSeq).toBe(1)
     expect(report.proposal).toBeTruthy()
-    const analysisId = report.analysisId!
+    const analysisId = report.analysisId
+    events.push({
+      type: 'command/done', seq: events.length, time: Date.now(),
+      data: { commandId: 'cmd-1', kind: 'success', text: analyzed.text },
+    })
 
     const applied = await controller.execute(invocation(agent, events, `apply ${analysisId}`, 'cmd-2'))
     expect(applied.kind).toBe('success')
+    expect(decodeInsightCommandResult(applied.text)?.type).toBe('applied')
     expect(await readFile(skillPath, 'utf8')).toBe('# New\n\nRecover once.\n')
 
     const reverted = await controller.execute(invocation(agent, events, `revert ${analysisId}`, 'cmd-3'))
     expect(reverted.kind).toBe('success')
+    expect(decodeInsightCommandResult(reverted.text)?.type).toBe('reverted')
     expect(await readFile(skillPath, 'utf8')).toBe('# Old\n')
-    expect(events.map((event) => event.type)).toEqual(expect.arrayContaining([
-      'skill-insight/started',
-      'skill-insight/completed',
-      'skill-insight/applied',
-      'skill-insight/reverted',
-    ]))
+    expect(events.every((event) => !event.type.startsWith('skill-insight/'))).toBe(true)
   })
 })

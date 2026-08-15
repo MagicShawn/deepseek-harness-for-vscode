@@ -9,7 +9,7 @@ await rm('lib', { recursive: true, force: true })
 const hostOptions = {
   entryPoints: {
     index: 'src/index.ts',
-    'shared/types': 'src/shared/types.ts',
+    'shared/index': 'src/shared/index.ts',
   },
   bundle: true,
   outdir: 'lib',

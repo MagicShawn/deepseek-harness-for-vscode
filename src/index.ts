@@ -16,9 +16,9 @@ export function apply(ctx: Context): void {
     name: 'skill-insight',
     description: 'analyze this session trace and propose an evidence-backed Skill update',
     input: { hint: 'analyze|apply|revert|show|list …' },
-    recordInput: false,
+    recordInput: true,
     handler: invocation => controller.execute(invocation),
   }), 'skill-insight: command')
 }
 
-export type * from './shared/types.js'
+export * from './shared/index.js'
