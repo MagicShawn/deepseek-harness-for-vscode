@@ -1,81 +1,90 @@
 # DeepSeek Harness UI for VS Code
 
+[![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-blue)](https://code.visualstudio.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-22.19%2B%20or%2024%2B-green)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 An unofficial, local-first VS Code workspace for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI.
 
-The extension keeps the complete official Harness experience—sessions, streaming, tools, approvals, questions, subagents, skills, model settings, and workspaces—beside your editor. It adds editor-native context, file navigation, diff, process lifecycle, and diagnostics without reimplementing the Harness protocol.
+It keeps the official Harness experience (sessions, streaming, tools, approvals, questions, subagents, skills, model settings, workspaces) inside VS Code, while adding editor-native capabilities like file navigation, diff, runtime lifecycle control, and diagnostics.
 
-简体中文说明随包提供：`README.zh-CN.md`。
+> 简体中文说明：[`README.zh-CN.md`](README.zh-CN.md)
 
-## Features
+## UI preview
 
-- Official Harness Web UI in the Activity Bar or an editor tab.
-- Managed local runtime or connection to an existing Harness URL.
-- Automatic runtime discovery: custom command → `dsh` on PATH → `npx @deepseek-ai/dsh`.
-- Start, stop, restart, refresh, browser-open, logs, and status-bar controls.
-- Add the current selection or complete file to the Harness composer.
-- Context is always copied to the clipboard before automatic insertion, so it is never lost if the upstream UI changes.
-- Open `file://` links from Harness in VS Code at the requested line and column.
-- Compare any two local files with the VS Code diff editor.
-- Theme-aware, keyboard-accessible, narrow-sidebar layout.
-- Authenticated loopback proxy with HTTP, SSE, and WebSocket support.
+![DeepSeek Harness in VS Code](https://github.com/user-attachments/assets/51e7f2d1-10f8-48b8-aace-fb62d29e5a15)
+
+## Highlights
+
+- Official Harness UI in the Activity Bar or an editor tab.
+- Managed local runtime **or** connect to an existing Harness URL.
+- Runtime auto-discovery: custom command → `dsh` in PATH → `npx @deepseek-ai/dsh`.
+- Start / stop / restart / refresh / browser-open / logs / status-bar controls.
+- Add selection or full file to composer with clipboard-safe fallback.
+- Open Harness `file://` links directly in VS Code (line + column).
+- Compare local files with VS Code diff editor.
+- Theme-aware, keyboard-friendly layout.
+- Authenticated loopback proxy for HTTP, SSE, and WebSocket traffic.
 
 ## Requirements
 
-- VS Code 1.90 or later.
-- Node.js supported by the installed DeepSeek Harness release. The current Harness preview requires Node.js 22.19+ or 24+.
-- A configured DeepSeek Harness model/provider. The extension never reads or stores your API key.
+- VS Code **1.90+**
+- Node.js compatible with the installed DeepSeek Harness release  
+  (current preview requires **22.19+** or **24+**)
+- A configured DeepSeek Harness model/provider  
+  (this extension does **not** read or store your API key)
 
-If `dsh` is already installed, the extension uses it. Otherwise it uses:
+If `dsh` is not available, the extension falls back to:
 
 ```sh
 npx --yes @deepseek-ai/dsh web --host 127.0.0.1 --port 0
 ```
 
-The first start can take longer while npm downloads the official package.
-
 ## Quick start
 
-1. Install the VSIX: **Extensions → … → Install from VSIX…**.
-2. Select the DeepSeek Harness icon in the Activity Bar.
-3. Wait for the official Web UI to become ready.
-4. Open a source file, select code, then run **DeepSeek Harness: Add Selection to Context** or use the editor context menu.
+1. Install the VSIX: **Extensions → … → Install from VSIX…**
+2. Click the **DeepSeek Harness** icon in the Activity Bar
+3. Wait until the official web UI is ready
+4. Open a source file and run:
+   - **DeepSeek Harness: Add Selection to Context**, or
+   - **DeepSeek Harness: Add File to Context**
 
-Useful commands:
+## Commands
 
-| Command | Purpose |
+| Command | What it does |
 | --- | --- |
-| `DeepSeek Harness: Focus Chat` | Focus the Activity Bar view |
-| `DeepSeek Harness: Open in Editor` | Open a persistent editor-tab workspace |
-| `DeepSeek Harness: New Session` | Invoke the official UI's new-session flow |
-| `DeepSeek Harness: Add Selection to Context` | Copy and insert selected code |
-| `DeepSeek Harness: Add File to Context` | Copy and insert the complete active file |
-| `DeepSeek Harness: Compare Files` | Open a two-file VS Code diff |
-| `Start / Stop / Restart` | Manage the owned local runtime |
-| `Show Logs` | Open lifecycle and diagnostic output |
+| `DeepSeek Harness: Focus Chat` | Focuses the Activity Bar chat view |
+| `DeepSeek Harness: Open in Editor` | Opens a persistent editor-tab workspace |
+| `DeepSeek Harness: New Session` | Triggers the official UI new-session flow |
+| `DeepSeek Harness: Add Selection to Context` | Copies and inserts selected code |
+| `DeepSeek Harness: Add File to Context` | Copies and inserts the active file |
+| `DeepSeek Harness: Compare Files` | Opens a two-file VS Code diff |
+| `Start / Stop / Restart` | Manages the owned local runtime |
+| `Show Logs` | Opens lifecycle and diagnostic logs |
 
 ## Configuration
 
 | Setting | Default | Description |
 | --- | --- | --- |
 | `deepseekHarness.connectionMode` | `auto` | `auto`, `managed`, or `external` |
-| `deepseekHarness.externalUrl` | empty | Existing Harness Web URL for auto/external mode |
-| `deepseekHarness.command` | empty | Custom executable plus optional prefix arguments |
-| `deepseekHarness.port` | `0` | Managed Web port; `0` asks the OS for a free port |
-| `deepseekHarness.startupTimeout` | `60` | Startup timeout in seconds |
-| `deepseekHarness.openOnStartup` | `false` | Focus the view when a workspace opens |
+| `deepseekHarness.externalUrl` | empty | Existing Harness web URL for auto/external mode |
+| `deepseekHarness.command` | empty | Custom executable with optional prefix arguments |
+| `deepseekHarness.port` | `0` | Managed web port; `0` requests a free OS port |
+| `deepseekHarness.startupTimeout` | `60` | Startup timeout (seconds) |
+| `deepseekHarness.openOnStartup` | `false` | Focuses the view on workspace open |
 
-Examples:
+Example (existing Harness instance):
 
 ```jsonc
-// Use an already running Harness instance.
 {
   "deepseekHarness.connectionMode": "external",
   "deepseekHarness.externalUrl": "http://127.0.0.1:3080"
 }
 ```
 
+Example (custom executable path on Windows):
+
 ```jsonc
-// Use a non-standard executable path on Windows.
 {
   "deepseekHarness.connectionMode": "managed",
   "deepseekHarness.command": "\"C:\\Tools\\dsh.cmd\""
@@ -84,34 +93,40 @@ Examples:
 
 ## Troubleshooting
 
-**The first launch times out**
+**First launch times out**
 
-Open **DeepSeek Harness: Show Logs**. If npm is still installing the official package, increase `deepseekHarness.startupTimeout` and retry. Verify `node --version` satisfies the Harness requirement.
+- Run **DeepSeek Harness: Show Logs**
+- If npm is still downloading the package, increase `deepseekHarness.startupTimeout`
+- Confirm `node --version` meets Harness requirements
 
-**The official page opens in a browser but not in VS Code**
+**Works in browser, not in VS Code**
 
-Run **DeepSeek Harness: Restart**, then **Refresh UI**. Check that security software allows loopback connections to `127.0.0.1`. The proxy never binds to a LAN address.
+- Run **DeepSeek Harness: Restart** and then **Refresh UI**
+- Verify local security software allows loopback access to `127.0.0.1`
 
 **Selection was not inserted**
 
-The formatted context was copied before insertion. Focus the Harness composer and paste. A notification confirms this fallback. Because the bridge deliberately stays thin, an upstream composer markup change cannot lose your text.
+- The formatted context is copied before insertion
+- Focus the composer and paste manually if needed
 
 **A file link does not open**
 
-Only existing regular files are accepted. Relative paths must stay inside an open VS Code workspace. HTTP links and path traversal are never opened as files.
+- Only existing regular files are allowed
+- Relative paths must stay inside an open workspace
+- HTTP links and traversal paths are rejected
 
-## Architecture and security
+## Security model
 
-The extension starts or connects to the official Web server, then places an authenticated reverse proxy on a random `127.0.0.1` port. The iframe receives a high-entropy bootstrap token; subsequent requests must be same-origin. The proxy supports streaming and WebSocket traffic and injects only a narrow editor bridge.
+The extension starts (or connects to) the official web server, then hosts an authenticated reverse proxy on a random `127.0.0.1` port. The iframe receives a high-entropy bootstrap token, and later requests must remain same-origin.
 
-Secrets remain owned by DeepSeek Harness. The extension does not log authorization headers, cookies, API keys, or credential-bearing URLs. External instances are never stopped by the extension; only child processes that it starts are terminated.
+Sensitive data stays owned by DeepSeek Harness. The extension does not log authorization headers, cookies, API keys, or credential-bearing URLs.
 
-## Status
+## Project status
 
-DeepSeek Harness is currently a developer preview and may introduce breaking changes. This extension intentionally reuses the official UI to minimize protocol drift. Automatic composer insertion and UI-driven new-session selection have clipboard or manual fallbacks when upstream markup changes.
+DeepSeek Harness is still in developer preview and may ship breaking changes. This extension intentionally reuses the official UI to minimize protocol drift and keeps clipboard/manual fallbacks for resilience when upstream markup changes.
 
 This community project is not affiliated with or endorsed by DeepSeek. DeepSeek and DeepSeek Harness are trademarks of their respective owners.
 
 ## License
 
-MIT. See the bundled `LICENSE` file.
+MIT — see [`LICENSE`](LICENSE).
