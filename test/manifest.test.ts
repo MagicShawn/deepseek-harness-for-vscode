@@ -30,10 +30,10 @@ async function manifest(): Promise<Manifest> {
 describe('extension manifest', () => {
   it('declares the public Marketplace identity and support metadata', async () => {
     const value = await manifest()
+    expect(value.version).toMatch(/^\d+\.\d+\.\d+$/u)
     expect(value).toMatchObject({
       name: 'deepseek-harness-ui',
       displayName: 'DeepSeek Harness UI (Unofficial)',
-      version: '0.1.2',
       publisher: 'magicshawn',
       icon: 'media/icon.png',
       pricing: 'Free',

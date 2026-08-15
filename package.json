@@ -133,14 +133,14 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts",
-    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.2.vsix"
+    "package": "npm run build && vsce package --out dist/deepseek-harness-ui.vsix"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/vscode": "^1.90.0",
     "@types/ws": "^8.18.1",
-    "@vscode/vsce": "^3.6.2",
+    "@vscode/vsce": "3.9.2",
     "esbuild": "^0.25.8",
     "eslint": "^9.33.0",
     "jsdom": "^30.0.1",
