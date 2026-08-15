@@ -1,162 +1,119 @@
-# DeepSeek Harness Skill Insight
+# DeepSeek Harness UI for VS Code
 
-A local-first, explicitly triggered plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It freezes the current Session trace, finds evidence-backed problems, and can propose a guarded update to the Skill that guided the run.
+An unofficial, local-first VS Code workspace for the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) Web UI.
 
-This is a native Harness bundle, not a VS Code extension. The Web UI appears as a **Skill Insight** tab inside DeepSeek Harness. A future editor adapter can consume the same versioned `report.json` artifacts without changing the analyzer.
+The extension keeps the complete official Harness experience—sessions, streaming, tools, approvals, questions, subagents, skills, model settings, and workspaces—beside your editor. It adds editor-native context, file navigation, diff, process lifecycle, and diagnostics without reimplementing the Harness protocol.
 
-[简体中文](README.zh-CN.md)
+![DeepSeek Harness UI embedded beside the VS Code editor](https://raw.githubusercontent.com/MagicShawn/deepseek-harness-for-vscode/main/media/demo-overview.png)
 
-![Skill Insight dashboard inside DeepSeek Harness](media/skill-insight-dashboard.png)
+简体中文说明随包提供：`README.zh-CN.md`。
 
-## What it does
+## Features
 
-- Runs only when you press **Start analysis** or explicitly enter `/skill-insight …`; no background analysis.
-- Provides a searchable Skill selector that prioritizes Skills used in the current Session and loads the complete installed catalog through the Harness Skills API.
-- Offers Hybrid and Rules analysis modes as visual controls, with Hybrid selected by default.
-- Reads the immutable Session event log up to a frozen sequence cutoff.
-- Redacts secrets, email addresses, and home-directory identities before analysis.
-- Detects repeated tool calls, tool failures, missing recovery, late Skill loading, and a mismatched Skill selection with deterministic rules.
-- Optionally asks the Session's selected provider/model for a structured second opinion and revised Skill body.
-- Shows metrics, findings, trace evidence, validation results, and a unified diff in the Harness Web UI.
-- Applies and reverts only file-backed `SKILL.md` proposals whose SHA-256 baseline still matches.
-- Preserves YAML frontmatter and original newline style.
-- Stores a stable JSON report and local snapshots under `$DSH_HOME/skill-insight/`.
-- Explicitly clears one analysis or all active analyses in the current Session, with UI confirmation and path-safe local deletion.
-- Persists UI state through Harness's official `command/run` and `command/done` lifecycle, so resumed Sessions remain loadable.
+- Official Harness Web UI in the Activity Bar or an editor tab.
+- Managed local runtime or connection to an existing Harness URL.
+- Automatic runtime discovery: custom command → `dsh` on PATH → `npx @deepseek-ai/dsh`.
+- Start, stop, restart, refresh, browser-open, logs, and status-bar controls.
+- Add the current selection or complete file to the Harness composer.
+- Context is always copied to the clipboard before automatic insertion, so it is never lost if the upstream UI changes.
+- Open `file://` links from Harness in VS Code at the requested line and column.
+- Compare any two local files with the VS Code diff editor.
+- Theme-aware, keyboard-accessible, narrow-sidebar layout.
+- Authenticated loopback proxy with HTTP, SSE, and WebSocket support.
 
 ## Requirements
 
-- DeepSeek Harness `0.1.0-rc.6`.
-- Node.js 22 or later.
-- A Web profile for the visual tab.
-- A selected provider/model only when using the default hybrid mode. Rules mode needs no auxiliary model call.
+- VS Code 1.90 or later.
+- Node.js supported by the installed DeepSeek Harness release. The current Harness preview requires Node.js 22.19+ or 24+.
+- A configured DeepSeek Harness model/provider. The extension never reads or stores your API key.
 
-Harness is still in preview, so its plugin API may change. This package pins the preview APIs it was verified against.
-
-## Install
-
-### From a local checkout
+If `dsh` is already installed, the extension uses it. Otherwise it uses:
 
 ```sh
-npm ci
-npm run package
-dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.2.tgz
-dsh --profile web --dump-config
-dsh --profile web
+npx --yes @deepseek-ai/dsh web --host 127.0.0.1 --port 0
 ```
 
-The dump should contain a `deepseek-harness-skill-insight` layer and a `skill-insight` row.
+The first start can take longer while npm downloads the official package.
 
-### From GitHub
+## Quick start
 
-```sh
-dsh plugin --profile web add github:MagicShawn/deepseek-harness-for-vscode#main
-```
+1. Install the VSIX: **Extensions → … → Install from VSIX…**.
+2. Select the DeepSeek Harness icon in the Activity Bar.
+3. Wait for the official Web UI to become ready.
+4. Open a source file, select code, then run **DeepSeek Harness: Add Selection to Context** or use the editor context menu.
 
-Git installs build the TypeScript sources through the package's `prepare` script. pnpm 10 may initially refuse that script; follow the exact `allowBuilds` entry printed by `dsh`, review the source, then retry. Pin a commit SHA when reproducibility matters.
-
-Once this package is published to npm, installation becomes:
-
-```sh
-dsh plugin --profile web add deepseek-harness-skill-insight
-```
-
-Remove it with:
-
-```sh
-dsh plugin --profile web remove deepseek-harness-skill-insight
-```
-
-## Use
-
-Let an agent complete or attempt work that invokes a Skill, then open the **Skill Insight** conversation tab:
-
-1. Choose **New analysis**. The form is already open when no previous analysis exists.
-2. Select a current-session Skill or search all installed Skills. One detected Skill is selected automatically; several detected Skills require an explicit choice; no detection uses **Auto-detect**.
-3. Keep **Hybrid** for model-assisted analysis or choose **Rules** for a deterministic, model-free diagnosis.
-4. Press **Start analysis**. The new result is selected automatically when it arrives.
-
-Review the evidence and diff before using the **Apply proposal**, **Revert change**, or cleanup buttons. Visual operations are persisted through Harness's official command lifecycle without adding command cards to the main chat.
-
-The manual CLI remains available for scripting and troubleshooting. Manually entered commands remain visible in the conversation audit trail:
-
-```text
-/skill-insight analyze
-```
-
-If the trace contains more than one Skill, select one explicitly:
-
-```text
-/skill-insight analyze --skill my-skill
-```
-
-For a fully deterministic diagnosis from the CLI:
-
-```text
-/skill-insight analyze --skill my-skill --mode rules
-```
-
-The complete manual command surface is:
+Useful commands:
 
 | Command | Purpose |
 | --- | --- |
-| `/skill-insight analyze [--skill <name>] [--mode hybrid\|rules]` | Freeze and analyze the current trace |
-| `/skill-insight apply <analysis-id>` | Apply a hash-guarded proposal |
-| `/skill-insight revert <analysis-id>` | Restore the captured pre-change snapshot |
-| `/skill-insight clear <analysis-id>` | Permanently delete one analysis's local artifacts in the current Session |
-| `/skill-insight clear --all --confirm` | Permanently delete all active analysis artifacts in the current Session |
-| `/skill-insight show [analysis-id]` | Summarize one analysis in command output |
-| `/skill-insight list` | List analyses recorded in the Session |
+| `DeepSeek Harness: Focus Chat` | Focus the Activity Bar view |
+| `DeepSeek Harness: Open in Editor` | Open a persistent editor-tab workspace |
+| `DeepSeek Harness: New Session` | Invoke the official UI's new-session flow |
+| `DeepSeek Harness: Add Selection to Context` | Copy and insert selected code |
+| `DeepSeek Harness: Add File to Context` | Copy and insert the complete active file |
+| `DeepSeek Harness: Compare Files` | Open a two-file VS Code diff |
+| `Start / Stop / Restart` | Manage the owned local runtime |
+| `Show Logs` | Open lifecycle and diagnostic output |
 
-Rules-only analysis never creates a writable proposal. A runtime Skill or any source without an absolute `SKILL.md` path is refused with a clear error because the plugin cannot establish a verifiable modification boundary.
+## Configuration
 
-## Artifacts and data contract
+| Setting | Default | Description |
+| --- | --- | --- |
+| `deepseekHarness.connectionMode` | `auto` | `auto`, `managed`, or `external` |
+| `deepseekHarness.externalUrl` | empty | Existing Harness Web URL for auto/external mode |
+| `deepseekHarness.command` | empty | Custom executable plus optional prefix arguments |
+| `deepseekHarness.port` | `0` | Managed Web port; `0` asks the OS for a free port |
+| `deepseekHarness.startupTimeout` | `60` | Startup timeout in seconds |
+| `deepseekHarness.openOnStartup` | `false` | Focus the view when a workspace opens |
 
-Each run writes:
+Examples:
 
-```text
-$DSH_HOME/skill-insight/<session-id>/<analysis-id>/
-├── report.json
-├── report.md
-├── trace.normalized.json
-├── proposal.diff                  # hybrid proposal only
-└── snapshots/
-    ├── SKILL.before.md
-    └── SKILL.proposed.md          # hybrid proposal only
+```jsonc
+// Use an already running Harness instance.
+{
+  "deepseekHarness.connectionMode": "external",
+  "deepseekHarness.externalUrl": "http://127.0.0.1:3080"
+}
 ```
 
-`report.json` uses `schemaVersion: 1` and is the supported integration boundary for a future VS Code or external visualization. The raw Harness trace is never copied into this directory; only the bounded, redacted projection is stored.
-
-Cleanup permanently removes the selected local report, normalized trace, diff, and Skill snapshots, then hides the cleared analyses from this Session's dashboard. It never deletes or rewrites Harness Session events: the command audit trail and any historical command payload remain in the append-only Session log. Cleanup also does **not** revert a proposal already applied to `SKILL.md`; revert it before cleanup if you still need that operation. Other Sessions are unaffected.
-
-## Privacy and safety
-
-Rules mode is entirely local. Hybrid mode sends two inputs to the provider/model already selected by the current Agent: the redacted normalized trace and the current Skill body. It does not send the raw Session log, local artifact snapshots, API keys, or Harness credentials.
-
-Before applying, the plugin verifies that:
-
-1. the proposal was generated from the stored baseline hash;
-2. the current `SKILL.md` still has that exact hash;
-3. YAML frontmatter remains byte-for-byte unchanged; and
-4. a revert is attempted only while the file still matches the applied hash.
-
-If another editor or process changes the Skill after analysis, apply/revert fails closed and asks you to run a new analysis.
-
-## Development
-
-```sh
-npm ci
-npm run verify
+```jsonc
+// Use a non-standard executable path on Windows.
+{
+  "deepseekHarness.connectionMode": "managed",
+  "deepseekHarness.command": "\"C:\\Tools\\dsh.cmd\""
+}
 ```
 
-The project uses TypeScript, Vitest, ESLint, and two esbuild targets: a Node ESM Host plugin and a browser module-loader bundle. Tests cover normalization/redaction, rule findings, structured model fallback, hash safety, artifact recovery, command orchestration, Client projection, UI rendering, and browser-bundle handoff.
+## Troubleshooting
 
-## Scope
+**The first launch times out**
 
-Skill Insight deliberately owns one loop only: **trace → evidence → Skill proposal → guarded apply/revert**. It does not score agents globally, run continuous telemetry, mutate Skills automatically, or provide a VS Code surface in this package.
+Open **DeepSeek Harness: Show Logs**. If npm is still installing the official package, increase `deepseekHarness.startupTimeout` and retry. Verify `node --version` satisfies the Harness requirement.
 
-This is an unofficial community project and is not affiliated with or endorsed by DeepSeek.
+**The official page opens in a browser but not in VS Code**
+
+Run **DeepSeek Harness: Restart**, then **Refresh UI**. Check that security software allows loopback connections to `127.0.0.1`. The proxy never binds to a LAN address.
+
+**Selection was not inserted**
+
+The formatted context was copied before insertion. Focus the Harness composer and paste. A notification confirms this fallback. Because the bridge deliberately stays thin, an upstream composer markup change cannot lose your text.
+
+**A file link does not open**
+
+Only existing regular files are accepted. Relative paths must stay inside an open VS Code workspace. HTTP links and path traversal are never opened as files.
+
+## Architecture and security
+
+The extension starts or connects to the official Web server, then places an authenticated reverse proxy on a random `127.0.0.1` port. The iframe receives a high-entropy bootstrap token; subsequent requests must be same-origin. The proxy supports streaming and WebSocket traffic and injects only a narrow editor bridge.
+
+Secrets remain owned by DeepSeek Harness. The extension does not log authorization headers, cookies, API keys, or credential-bearing URLs. External instances are never stopped by the extension; only child processes that it starts are terminated.
+
+## Status
+
+DeepSeek Harness is currently a developer preview and may introduce breaking changes. This extension intentionally reuses the official UI to minimize protocol drift. Automatic composer insertion and UI-driven new-session selection have clipboard or manual fallbacks when upstream markup changes.
+
+This community project is not affiliated with or endorsed by DeepSeek. DeepSeek and DeepSeek Harness are trademarks of their respective owners.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See the bundled `LICENSE` file.

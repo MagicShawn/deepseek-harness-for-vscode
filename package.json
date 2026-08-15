@@ -1,9 +1,11 @@
 {
-  "name": "deepseek-harness-skill-insight",
-  "version": "0.1.2",
-  "description": "Local-first DeepSeek Harness plugin for trace analysis and evidence-backed Skill optimization.",
-  "license": "MIT",
-  "type": "module",
+  "name": "deepseek-harness-ui",
+  "displayName": "DeepSeek Harness UI (Unofficial)",
+  "description": "Unofficial VS Code visual workspace for the official DeepSeek Harness Web UI.",
+  "version": "0.1.1",
+  "publisher": "magicshawn",
+  "icon": "media/icon.png",
+  "pricing": "Free",
   "repository": {
     "type": "git",
     "url": "https://github.com/MagicShawn/deepseek-harness-for-vscode.git"
@@ -12,45 +14,116 @@
   "bugs": {
     "url": "https://github.com/MagicShawn/deepseek-harness-for-vscode/issues"
   },
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  },
+  "license": "MIT",
+  "type": "module",
   "engines": {
-    "node": ">=22"
+    "vscode": "^1.90.0"
   },
-  "main": "./lib/index.js",
-  "types": "./lib/types/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./lib/types/index.d.ts",
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "types": "./lib/types/client/index.d.ts",
-      "default": "./lib/client.js"
-    },
-    "./shared": {
-      "types": "./lib/types/shared/index.d.ts",
-      "default": "./lib/shared/index.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib/**",
-    "cordis.patch.yml",
-    "README.md",
-    "README.zh-CN.md",
-    "CHANGELOG.md",
-    "LICENSE",
-    "media/skill-insight-dashboard.png"
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:deepseekHarness.sidebar",
+    "onWebviewPanel:deepseekHarness.panel"
   ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-conversation"
+  "main": "./dist/extension.cjs",
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "deepseek",
+    "harness",
+    "agent",
+    "ai",
+    "chat"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseekHarness",
+          "title": "DeepSeek Harness",
+          "icon": "media/activity.svg"
+        }
       ]
+    },
+    "views": {
+      "deepseekHarness": [
+        {
+          "id": "deepseekHarness.sidebar",
+          "name": "Harness",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      { "command": "deepseekHarness.focus", "title": "DeepSeek Harness: Focus Chat", "icon": "$(comment-discussion)" },
+      { "command": "deepseekHarness.openPanel", "title": "DeepSeek Harness: Open in Editor", "icon": "$(open-preview)" },
+      { "command": "deepseekHarness.newSession", "title": "DeepSeek Harness: New Session", "icon": "$(add)" },
+      { "command": "deepseekHarness.sendSelection", "title": "DeepSeek Harness: Add Selection to Context", "icon": "$(quote)" },
+      { "command": "deepseekHarness.sendFile", "title": "DeepSeek Harness: Add File to Context", "icon": "$(file-code)" },
+      { "command": "deepseekHarness.compareFiles", "title": "DeepSeek Harness: Compare Files", "icon": "$(diff)" },
+      { "command": "deepseekHarness.start", "title": "DeepSeek Harness: Start", "icon": "$(play)" },
+      { "command": "deepseekHarness.stop", "title": "DeepSeek Harness: Stop", "icon": "$(debug-stop)" },
+      { "command": "deepseekHarness.restart", "title": "DeepSeek Harness: Restart", "icon": "$(refresh)" },
+      { "command": "deepseekHarness.refresh", "title": "DeepSeek Harness: Refresh UI", "icon": "$(refresh)" },
+      { "command": "deepseekHarness.openBrowser", "title": "DeepSeek Harness: Open in Browser", "icon": "$(link-external)" },
+      { "command": "deepseekHarness.showLogs", "title": "DeepSeek Harness: Show Logs", "icon": "$(output)" },
+      { "command": "deepseekHarness.openSettings", "title": "DeepSeek Harness: Settings", "icon": "$(settings-gear)" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "deepseekHarness.newSession", "when": "view == deepseekHarness.sidebar", "group": "navigation@1" },
+        { "command": "deepseekHarness.openPanel", "when": "view == deepseekHarness.sidebar", "group": "navigation@2" },
+        { "command": "deepseekHarness.restart", "when": "view == deepseekHarness.sidebar", "group": "navigation@3" }
+      ],
+      "editor/context": [
+        { "command": "deepseekHarness.sendSelection", "when": "editorHasSelection", "group": "deepseekHarness@1" },
+        { "command": "deepseekHarness.sendFile", "when": "resourceScheme == file", "group": "deepseekHarness@2" }
+      ]
+    },
+    "configuration": {
+      "title": "DeepSeek Harness",
+      "properties": {
+        "deepseekHarness.connectionMode": {
+          "type": "string",
+          "enum": ["auto", "managed", "external"],
+          "default": "auto",
+          "description": "Choose whether to start a local Harness or connect to an external URL."
+        },
+        "deepseekHarness.externalUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Existing DeepSeek Harness Web URL used by auto/external mode."
+        },
+        "deepseekHarness.command": {
+          "type": "string",
+          "default": "",
+          "description": "Custom dsh executable and optional prefix arguments. Leave empty for auto-discovery."
+        },
+        "deepseekHarness.port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "Managed Harness Web port. Use 0 to select a free port."
+        },
+        "deepseekHarness.startupTimeout": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 300,
+          "default": 60,
+          "description": "Seconds to wait for the managed Harness Web UI to become ready."
+        },
+        "deepseekHarness.openOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "description": "Focus the Harness sidebar after a workspace opens."
+        }
+      }
     }
   },
   "scripts": {
@@ -59,50 +132,21 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src test",
-    "verify": "npm run typecheck && npm run lint && npm test && npm run build",
-    "prepare": "npm run build",
-    "package": "npm pack"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-commands": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-session": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-skill": "0.1.0-rc.6",
-    "react": "^18.2.0"
-  },
-  "dependencies": {
-    "@deepseek-ai/dsh-home-paths": "0.1.0-rc.6",
-    "@deepseek-ai/schemastery": "^3.18.1",
-    "diff": "^8.0.2"
+    "lint": "eslint src test scripts",
+    "package": "npm run build && vsce package --out dist/deepseek-harness-ui-0.1.1.vsix"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-commands": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-llm": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-session": "0.1.0-rc.6",
-    "@deepseek-ai/dsh-skill": "0.1.0-rc.6",
-    "@types/diff": "^7.0.2",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
-    "@types/react": "^18.3.24",
-    "@types/react-dom": "^18.3.7",
+    "@types/vscode": "^1.90.0",
+    "@types/ws": "^8.18.1",
+    "@vscode/vsce": "^3.6.2",
     "esbuild": "^0.25.8",
     "eslint": "^9.33.0",
     "jsdom": "^30.0.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.1",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "ws": "^8.21.3"
   }
 }
