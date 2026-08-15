@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 — 2026-08-15
+
+- Replace the CLI-first dashboard workflow with a single visual analysis form and button-based lifecycle actions.
+- Add searchable installed-Skill discovery through the official Harness Skills API.
+- Prioritize Skills invoked in the current Session, auto-select a single detection, and require a choice when several are present.
+- Add Hybrid/Rules mode controls, duplicate-submit protection, progress, retry, and inline failure states.
+- Hide visual-operation command cards while preserving official durable command events; manually entered CLI commands remain visible.
+- Automatically select newly projected analysis results.
+
 ## 0.1.1 — 2026-08-15
 
 - Add explicit cleanup commands for one analysis and for all active analyses in the current Session.

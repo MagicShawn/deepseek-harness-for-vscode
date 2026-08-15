@@ -1,6 +1,6 @@
 # DeepSeek Harness Skill Insight
 
-A local-first, command-triggered plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It freezes the current Session trace, finds evidence-backed problems, and can propose a guarded update to the Skill that guided the run.
+A local-first, explicitly triggered plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It freezes the current Session trace, finds evidence-backed problems, and can propose a guarded update to the Skill that guided the run.
 
 This is a native Harness bundle, not a VS Code extension. The Web UI appears as a **Skill Insight** tab inside DeepSeek Harness. A future editor adapter can consume the same versioned `report.json` artifacts without changing the analyzer.
 
@@ -10,7 +10,9 @@ This is a native Harness bundle, not a VS Code extension. The Web UI appears as 
 
 ## What it does
 
-- Runs only when you explicitly enter `/skill-insight …`; no background analysis.
+- Runs only when you press **Start analysis** or explicitly enter `/skill-insight …`; no background analysis.
+- Provides a searchable Skill selector that prioritizes Skills used in the current Session and loads the complete installed catalog through the Harness Skills API.
+- Offers Hybrid and Rules analysis modes as visual controls, with Hybrid selected by default.
 - Reads the immutable Session event log up to a frozen sequence cutoff.
 - Redacts secrets, email addresses, and home-directory identities before analysis.
 - Detects repeated tool calls, tool failures, missing recovery, late Skill loading, and a mismatched Skill selection with deterministic rules.
@@ -38,7 +40,7 @@ Harness is still in preview, so its plugin API may change. This package pins the
 ```sh
 npm ci
 npm run package
-dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.1.tgz
+dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.2.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
@@ -67,7 +69,16 @@ dsh plugin --profile web remove deepseek-harness-skill-insight
 
 ## Use
 
-Let an agent complete or attempt work that invokes a Skill, then enter:
+Let an agent complete or attempt work that invokes a Skill, then open the **Skill Insight** conversation tab:
+
+1. Choose **New analysis**. The form is already open when no previous analysis exists.
+2. Select a current-session Skill or search all installed Skills. One detected Skill is selected automatically; several detected Skills require an explicit choice; no detection uses **Auto-detect**.
+3. Keep **Hybrid** for model-assisted analysis or choose **Rules** for a deterministic, model-free diagnosis.
+4. Press **Start analysis**. The new result is selected automatically when it arrives.
+
+Review the evidence and diff before using the **Apply proposal**, **Revert change**, or cleanup buttons. Visual operations are persisted through Harness's official command lifecycle without adding command cards to the main chat.
+
+The manual CLI remains available for scripting and troubleshooting. Manually entered commands remain visible in the conversation audit trail:
 
 ```text
 /skill-insight analyze
@@ -79,13 +90,13 @@ If the trace contains more than one Skill, select one explicitly:
 /skill-insight analyze --skill my-skill
 ```
 
-For a fully deterministic, model-free diagnosis:
+For a fully deterministic diagnosis from the CLI:
 
 ```text
 /skill-insight analyze --skill my-skill --mode rules
 ```
 
-Open the **Skill Insight** conversation tab to inspect the report. Hybrid analyses can include a proposal; review its evidence and diff before choosing **Apply proposal**. The buttons issue the same auditable commands available in the composer:
+The complete manual command surface is:
 
 | Command | Purpose |
 | --- | --- |

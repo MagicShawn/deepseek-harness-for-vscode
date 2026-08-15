@@ -1,6 +1,6 @@
 # DeepSeek Harness Skill Insight
 
-一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的本地优先、显式命令触发插件。它会冻结当前 Session 的 trace，找出有证据支持的问题，并为本次运行使用的 Skill 生成可审查、可回滚的优化提案。
+一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的本地优先、显式触发插件。它会冻结当前 Session 的 trace，找出有证据支持的问题，并为本次运行使用的 Skill 生成可审查、可回滚的优化提案。
 
 这是原生 Harness bundle，不是 VS Code 插件。可视化界面以 **Skill Insight** 标签页直接出现在 DeepSeek Harness Web UI 中；未来的 VS Code 适配器可以直接消费版本化的 `report.json`，无需改动分析内核。
 
@@ -10,7 +10,9 @@
 
 ## 核心能力
 
-- 只在用户显式输入 `/skill-insight …` 后运行，不做后台自动分析。
+- 只在用户点击**开始分析**或显式输入 `/skill-insight …` 后运行，不做后台自动分析。
+- 提供可搜索的 Skill 选择器：优先展示当前 Session 使用过的 Skills，并通过 Harness Skills API 加载全部已安装 Skills。
+- 以可视化控件选择 Hybrid 或 Rules 模式，默认使用 Hybrid。
 - 在固定 seq 截止点读取不可变 Session 事件日志，避免分析期间 trace 漂移。
 - 分析前脱敏密钥、邮箱和用户主目录标识，并限制事件与文本大小。
 - 通过确定性规则发现重复工具调用、工具失败、缺少恢复动作、Skill 加载过晚和目标 Skill 不匹配。
@@ -38,7 +40,7 @@ Harness 仍处于预览阶段，插件 API 可能变化。本项目锁定并验�
 ```sh
 npm ci
 npm run package
-dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.1.tgz
+dsh plugin --profile web add ./deepseek-harness-skill-insight-0.1.2.tgz
 dsh --profile web --dump-config
 dsh --profile web
 ```
@@ -67,7 +69,16 @@ dsh plugin --profile web remove deepseek-harness-skill-insight
 
 ## 使用方法
 
-先让 Agent 完成或尝试一次调用了 Skill 的任务，然后输入：
+先让 Agent 完成或尝试一次调用了 Skill 的任务，然后打开会话中的 **Skill Insight** 标签页：
+
+1. 点击**新建分析**；如果还没有历史分析，表单会直接展开。
+2. 选择当前 Session 的 Skill，或搜索全部已安装 Skills。检测到一个 Skill 时自动选中；检测到多个时必须明确选择；没有检测结果时使用**自动检测**。
+3. 保持 **Hybrid** 可获得模型辅助分析，或选择 **Rules** 执行完全确定性、无额外模型调用的诊断。
+4. 点击**开始分析**；新结果到达后会自动选中。
+
+检查证据和 diff 后，可直接通过**应用提案**、**回滚修改**和清理按钮完成操作。可视化操作仍通过 Harness 官方命令生命周期持久化，但不会在主聊天区增加命令卡片。
+
+手工 CLI 仍可用于脚本和排障；手工输入的命令会继续显示在会话审计轨迹中：
 
 ```text
 /skill-insight analyze
@@ -79,13 +90,13 @@ dsh plugin --profile web remove deepseek-harness-skill-insight
 /skill-insight analyze --skill my-skill
 ```
 
-若希望完全确定性、完全不调用模型：
+若希望从 CLI 执行完全确定性、完全不调用模型的诊断：
 
 ```text
 /skill-insight analyze --skill my-skill --mode rules
 ```
 
-打开会话中的 **Skill Insight** 标签页即可查看报告。Hybrid 分析可能包含修改提案；请先检查证据与 diff，再点击 **应用提案**。界面按钮与输入框中的命令完全等价，都会进入可审计的 Session 日志。
+完整的手工命令如下：
 
 | 命令 | 用途 |
 | --- | --- |
