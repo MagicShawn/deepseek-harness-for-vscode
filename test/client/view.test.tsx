@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { SkillInsightView, type SkillInsightViewInjected } from '../../src/client/SkillInsightView.js'
 import { SkillInsightCommandCard } from '../../src/client/SkillInsightCommandCard.js'
+import type { SkillInsightActions } from '../../src/client/actions.js'
 import { encodeInsightCommandResult } from '../../src/shared/envelope.js'
 import type { InsightReport, InsightViewSnapshot } from '../../src/shared/types.js'
 
@@ -43,12 +44,24 @@ const report: InsightReport = {
   warnings: [],
 }
 
-function viewProps(insight: InsightViewSnapshot, runCommand: (line: string) => Promise<void>) {
+function visualActions(overrides: Partial<SkillInsightActions> = {}): SkillInsightActions {
+  return {
+    loadSkills: async () => [],
+    analyze: async () => {},
+    apply: async () => {},
+    revert: async () => {},
+    clear: async () => {},
+    clearAll: async () => {},
+    ...overrides,
+  }
+}
+
+function viewProps(insight: InsightViewSnapshot, actions = visualActions()) {
   const conversation = { views: new Map([['skill-insight', insight]]) }
   return {
     sessionId: 'session-ui',
     useSession: (selector: (snapshot: typeof conversation) => unknown) => selector(conversation),
-    runCommand,
+    actions,
   } as unknown as ConvViewProps & SkillInsightViewInjected
 }
 
@@ -133,7 +146,7 @@ describe('SkillInsightView', () => {
     const props = {
       sessionId: 'session-ui',
       useSession: (selector: (snapshot: typeof conversation) => unknown) => selector(conversation),
-      runCommand: async () => {},
+      actions: visualActions(),
     } as unknown as ConvViewProps & SkillInsightViewInjected
 
     const html = renderToStaticMarkup(createElement(SkillInsightView, props))
@@ -151,7 +164,7 @@ describe('SkillInsightView', () => {
     const props = {
       sessionId: 'session-ui',
       useSession: (selector: (snapshot: typeof conversation) => unknown) => selector(conversation),
-      runCommand: async () => {},
+      actions: visualActions(),
     } as unknown as ConvViewProps & SkillInsightViewInjected
 
     const html = renderToStaticMarkup(createElement(SkillInsightView, props))
@@ -161,12 +174,12 @@ describe('SkillInsightView', () => {
   })
 
   test('requires confirmation before clearing one analysis and supports cancellation', async () => {
-    const runCommand = vi.fn(async () => {})
+    const clear = vi.fn(async () => {})
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',
       runs: [{ analysisId: 'si-ui', status: 'completed', report, artifactDirectory: '/artifacts' }],
     }
-    const { container, root } = await renderInteractive(viewProps(insight, runCommand))
+    const { container, root } = await renderInteractive(viewProps(insight, visualActions({ clear })))
 
     await click(button(container, 'Clear analysis'))
     expect(container.querySelector('[role="dialog"]')?.textContent).toContain(
@@ -174,16 +187,16 @@ describe('SkillInsightView', () => {
     )
     await click(button(container, 'Cancel'))
     expect(container.querySelector('[role="dialog"]')).toBeNull()
-    expect(runCommand).not.toHaveBeenCalled()
+    expect(clear).not.toHaveBeenCalled()
 
     await click(button(container, 'Clear analysis'))
     await click(button(container, 'Confirm clear'))
-    expect(runCommand).toHaveBeenCalledWith('/skill-insight clear si-ui')
+    expect(clear).toHaveBeenCalledWith('si-ui')
     await act(async () => root.unmount())
   })
 
   test('uses the explicit confirmed command for clearing all current-session analyses', async () => {
-    const runCommand = vi.fn(async () => {})
+    const clearAll = vi.fn(async () => {})
     const insight: InsightViewSnapshot = {
       latestAnalysisId: 'si-ui',
       runs: [
@@ -191,14 +204,14 @@ describe('SkillInsightView', () => {
         { analysisId: 'si-other', status: 'completed', report: { ...report, analysisId: 'si-other' } },
       ],
     }
-    const { container, root } = await renderInteractive(viewProps(insight, runCommand))
+    const { container, root } = await renderInteractive(viewProps(insight, visualActions({ clearAll })))
 
     await click(button(container, 'Clear all'))
     const dialog = container.querySelector('[role="dialog"]')
     expect(dialog?.textContent).toContain('all 2 analyses')
     expect(dialog?.textContent).toContain('does not revert applied Skill changes')
     await click(button(container, 'Confirm clear all'))
-    expect(runCommand).toHaveBeenCalledWith('/skill-insight clear --all --confirm')
+    expect(clearAll).toHaveBeenCalledOnce()
     await act(async () => root.unmount())
   })
 })

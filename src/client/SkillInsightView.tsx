@@ -7,9 +7,10 @@ import type {
   InsightRunView,
 } from '../shared/types.js'
 import { EMPTY_INSIGHT_SNAPSHOT } from './projection.js'
+import type { SkillInsightActions } from './actions.js'
 
 export interface SkillInsightViewInjected {
-  runCommand: (line: string) => Promise<void>
+  actions: SkillInsightActions
 }
 
 type ViewProps = ConvViewProps & SkillInsightViewInjected
@@ -122,7 +123,10 @@ function Issue({ issue }: { issue: InsightIssue }) {
   </article>
 }
 
-function EmptyState({ run, pending }: { run: (line: string) => void; pending: boolean }) {
+function EmptyState({ analyze, pending }: {
+  analyze: (mode: 'hybrid' | 'rules') => void
+  pending: boolean
+}) {
   const t = TEXT[isChinese() ? 'zh' : 'en']
   return <div className="si-card si-empty">
     <div className="si-empty-inner">
@@ -131,16 +135,17 @@ function EmptyState({ run, pending }: { run: (line: string) => void; pending: bo
       <p>{t.emptyBody}</p>
       <code className="si-command">/skill-insight analyze</code>
       <div className="si-actions" style={{ justifyContent: 'center' }}>
-        <button className="si-button si-button-primary" disabled={pending} onClick={() => run('/skill-insight analyze')}>{pending && <span className="si-spinner" />} {t.analyze}</button>
-        <button className="si-button" disabled={pending} onClick={() => run('/skill-insight analyze --mode rules')}>{t.rules}</button>
+        <button className="si-button si-button-primary" disabled={pending} onClick={() => analyze('hybrid')}>{pending && <span className="si-spinner" />} {t.analyze}</button>
+        <button className="si-button" disabled={pending} onClick={() => analyze('rules')}>{t.rules}</button>
       </div>
     </div>
   </div>
 }
 
-function RunDetail({ run, execute, requestClear, pending }: {
+function RunDetail({ run, actions, execute, requestClear, pending }: {
   run: InsightRunView
-  execute: (line: string) => void
+  actions: SkillInsightActions
+  execute: (operation: () => Promise<void>) => void
   requestClear: (run: InsightRunView) => void
   pending: boolean
 }) {
@@ -154,9 +159,9 @@ function RunDetail({ run, execute, requestClear, pending }: {
     </div>
   }
   const action = run.status === 'applied'
-    ? { label: t.revert, line: `/skill-insight revert ${run.analysisId}`, danger: true }
+    ? { label: t.revert, operation: () => actions.revert(run.analysisId), danger: true }
     : report.proposal && run.status !== 'running'
-      ? { label: t.apply, line: `/skill-insight apply ${run.analysisId}`, danger: false }
+      ? { label: t.apply, operation: () => actions.apply(run.analysisId), danger: false }
       : null
   const metrics = [
     [t.events, report.metrics.totalEvents],
@@ -174,7 +179,7 @@ function RunDetail({ run, execute, requestClear, pending }: {
       <div className="si-hero-row">
         <div><div className="si-skill">{report.skill.name}</div><div className="si-summary">{report.summary}</div></div>
         <div className="si-actions">
-          {action && <button className={`si-button si-button-primary ${action.danger ? 'si-button-danger' : ''}`} disabled={pending} onClick={() => execute(action.line)}>{action.label}</button>}
+          {action && <button className={`si-button si-button-primary ${action.danger ? 'si-button-danger' : ''}`} disabled={pending} onClick={() => execute(action.operation)}>{action.label}</button>}
           <button className="si-button si-button-danger" disabled={pending} onClick={() => requestClear(run)}>{t.clearAnalysis}</button>
         </div>
       </div>
@@ -199,7 +204,7 @@ type ClearIntent =
   | { scope: 'analysis'; analysisId: string; applied: boolean }
   | { scope: 'session'; count: number; hasApplied: boolean }
 
-export function SkillInsightView({ useSession, runCommand }: ViewProps) {
+export function SkillInsightView({ useSession, actions }: ViewProps) {
   const t = TEXT[isChinese() ? 'zh' : 'en']
   const snapshot = useSession(value => value.views.get('skill-insight') ?? EMPTY_INSIGHT_SNAPSHOT)
   const [selectedId, setSelectedId] = useState(snapshot.latestAnalysisId)
@@ -215,20 +220,20 @@ export function SkillInsightView({ useSession, runCommand }: ViewProps) {
     () => snapshot.runs.find((run) => run.analysisId === selectedId) ?? snapshot.runs[0],
     [selectedId, snapshot.runs],
   )
-  const execute = (line: string) => {
+  const execute = (operation: () => Promise<void>) => {
     setPending(true)
     setLocalError(null)
-    void runCommand(line)
+    void operation()
       .catch((error: unknown) => setLocalError(error instanceof Error ? error.message : String(error)))
       .finally(() => setPending(false))
   }
   const confirmClear = () => {
     if (!clearIntent) return
-    const line = clearIntent.scope === 'analysis'
-      ? `/skill-insight clear ${clearIntent.analysisId}`
-      : '/skill-insight clear --all --confirm'
+    const operation = clearIntent.scope === 'analysis'
+      ? () => actions.clear(clearIntent.analysisId)
+      : () => actions.clearAll()
     setClearIntent(null)
-    execute(line)
+    execute(operation)
   }
   const clearHasAppliedChanges = clearIntent?.scope === 'analysis'
     ? clearIntent.applied
@@ -245,15 +250,15 @@ export function SkillInsightView({ useSession, runCommand }: ViewProps) {
             count: snapshot.runs.length,
             hasApplied: snapshot.runs.some((run) => run.status === 'applied'),
           })}>{t.clearAll}</button>}
-          <button className="si-button" disabled={pending} onClick={() => execute('/skill-insight analyze')}>{pending ? <span className="si-spinner" /> : '↗'} {t.analyze}</button>
+          <button className="si-button" disabled={pending} onClick={() => execute(() => actions.analyze({ mode: 'hybrid' }))}>{pending ? <span className="si-spinner" /> : '↗'} {t.analyze}</button>
         </div>
       </header>
       {localError && <div className="si-notice si-error">{localError}</div>}
       {snapshot.runs.length === 0
-        ? <EmptyState run={execute} pending={pending} />
+        ? <EmptyState analyze={(mode) => execute(() => actions.analyze({ mode }))} pending={pending} />
         : <div className="si-layout">
           <aside className="si-history"><div className="si-history-title">{t.history}</div>{snapshot.runs.map((run) => <button className="si-history-item" data-active={run.analysisId === selected?.analysisId} onClick={() => setSelectedId(run.analysisId)} key={run.analysisId}><span className="si-history-skill">{run.report?.skill.name ?? run.skillName ?? run.analysisId}</span><span className="si-history-meta"><span>{run.status}</span><span>{run.report?.effectiveMode ?? run.requestedMode}</span></span></button>)}</aside>
-          <main className="si-content">{selected && <RunDetail run={selected} execute={execute} requestClear={(run) => setClearIntent({
+          <main className="si-content">{selected && <RunDetail run={selected} actions={actions} execute={execute} requestClear={(run) => setClearIntent({
             scope: 'analysis',
             analysisId: run.analysisId,
             applied: run.status === 'applied',
