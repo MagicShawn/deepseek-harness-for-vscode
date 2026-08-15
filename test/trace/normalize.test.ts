@@ -46,10 +46,20 @@ describe('normalizeTrace', () => {
           },
         },
       },
+      {
+        seq: 3,
+        time: 1_700_000_000_300,
+        type: 'user/message',
+        data: {
+          role: 'user',
+          source: { kind: 'skill-invocation', name: 'explicit-skill', form: 'instructions' },
+          content: [{ type: 'text', text: 'load explicit skill' }],
+        },
+      },
     ])
 
-    expect(trace.invokedSkills).toEqual(['demo-skill'])
-    expect(trace.events).toHaveLength(3)
+    expect(trace.invokedSkills).toEqual(['demo-skill', 'explicit-skill'])
+    expect(trace.events).toHaveLength(4)
     expect(JSON.stringify(trace.events)).not.toContain('dev@example.com')
     expect(JSON.stringify(trace.events)).not.toContain('alice')
     expect(JSON.stringify(trace.events)).not.toContain('sk-secret123')

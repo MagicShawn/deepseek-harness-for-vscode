@@ -40,6 +40,13 @@ export async function readSkillSnapshot(
     throw new Error(`Refusing to modify ${identity.path}: expected a SKILL.md file.`)
   }
   const rawContent = await readFile(identity.path, 'utf8')
+  return snapshotSkillContent(identity, rawContent)
+}
+
+export function snapshotSkillContent(
+  identity: SkillFileIdentity,
+  rawContent: string,
+): SkillSourceSnapshot {
   const parts = splitSkillContent(rawContent)
   return {
     ...identity,

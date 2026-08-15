@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 
@@ -7,12 +7,15 @@ import type {
   NormalizedTrace,
   SkillSourceSnapshot,
 } from '../shared/types.js'
+import { snapshotSkillContent } from '../skill/file.js'
 
 export interface AnalysisArtifacts {
   report: InsightReport
   trace: NormalizedTrace
   skill: SkillSourceSnapshot
 }
+
+export type RestoredAnalysis = AnalysisArtifacts
 
 function safeSegment(value: string): string {
   const safe = value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^\.+/, '')
@@ -73,5 +76,24 @@ export class ArtifactStore {
       ])
     }
     return directory
+  }
+
+  async readAnalysis(sessionId: string, analysisId: string): Promise<RestoredAnalysis> {
+    const directory = this.directoryFor(sessionId, analysisId)
+    const [reportText, traceText, rawContent] = await Promise.all([
+      readFile(join(directory, 'report.json'), 'utf8'),
+      readFile(join(directory, 'trace.normalized.json'), 'utf8'),
+      readFile(join(directory, 'snapshots', 'SKILL.before.md'), 'utf8'),
+    ])
+    const report = JSON.parse(reportText) as InsightReport
+    const trace = JSON.parse(traceText) as NormalizedTrace
+    if (report.schemaVersion !== 1 || report.analysisId !== analysisId || report.sessionId !== sessionId) {
+      throw new Error('Stored Skill Insight report identity does not match the requested analysis.')
+    }
+    const skill = snapshotSkillContent(report.skill, rawContent)
+    if (report.proposal && skill.baselineHash !== report.proposal.beforeHash) {
+      throw new Error('Stored Skill snapshot hash does not match the proposal baseline.')
+    }
+    return { report, trace, skill }
   }
 }

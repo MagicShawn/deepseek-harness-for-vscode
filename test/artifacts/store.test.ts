@@ -52,5 +52,9 @@ describe('ArtifactStore', () => {
     expect(saved.analysisId).toBe('analysis:unsafe')
     expect(await readFile(join(directory, 'trace.normalized.json'), 'utf8')).toContain('user/message')
     expect(await readFile(join(directory, 'snapshots', 'SKILL.before.md'), 'utf8')).toBe('# Old\n')
+
+    const restored = await store.readAnalysis('session/unsafe', 'analysis:unsafe')
+    expect(restored.report).toEqual(report)
+    expect(restored.skill.rawContent).toBe('# Old\n')
   })
 })

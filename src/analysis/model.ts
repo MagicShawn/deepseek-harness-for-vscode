@@ -50,6 +50,11 @@ function stringValue(value: unknown, fallback: string, limit = 2_000): string {
   return value.trim().slice(0, limit)
 }
 
+function skillContentValue(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return ''
+  return value.slice(0, 40_000)
+}
+
 function severity(value: unknown): InsightSeverity {
   return value === 'info' || value === 'warning' || value === 'critical'
     ? value
@@ -92,7 +97,7 @@ function normalizeResult(value: unknown, trace: NormalizedTrace): ModelAnalysisR
   }
   const record = value as Record<string, unknown>
   if (!Array.isArray(record.issues)) throw new Error('response JSON must include issues[]')
-  const revisedSkillContent = stringValue(record.revisedSkillContent, '', 120_000)
+  const revisedSkillContent = skillContentValue(record.revisedSkillContent)
   if (!revisedSkillContent) throw new Error('response JSON must include revisedSkillContent')
 
   const issues = record.issues.slice(0, 12).map((value, index) => {

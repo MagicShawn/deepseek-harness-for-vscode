@@ -141,6 +141,13 @@ function normalizeEvent(event: TraceEventInput, stringLimit: number): Normalized
     normalized.isError = Boolean(rawData.error) || message.isError === true
   }
 
+  if (event.type === 'user/message') {
+    const source = record(rawData.source)
+    if (source.kind === 'skill-invocation' && typeof source.name === 'string') {
+      normalized.skillName = redactText(source.name)
+    }
+  }
+
   return normalized
 }
 
