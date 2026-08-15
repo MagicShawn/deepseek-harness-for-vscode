@@ -57,6 +57,14 @@ export interface SkillIdentity {
   provider: string
 }
 
+export interface SkillSourceSnapshot extends SkillIdentity {
+  rawContent: string
+  frontmatter: string
+  body: string
+  newline: '\n' | '\r\n'
+  baselineHash: string
+}
+
 export interface SkillProposal {
   revisedContent: string
   unifiedDiff: string
