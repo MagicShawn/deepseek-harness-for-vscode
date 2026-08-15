@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 — 2026-08-15
+
+- Prepare the extension for its first Visual Studio Marketplace release under publisher `magicshawn`.
+- Add public repository, support, pricing, gallery, and Marketplace icon metadata.
+- Add an interface demonstration image to the English and Chinese Marketplace documentation.
+
 ## 0.1.0 — 2026-08-14
 
 - Embed the official DeepSeek Harness Web UI in a VS Code sidebar and editor panel.

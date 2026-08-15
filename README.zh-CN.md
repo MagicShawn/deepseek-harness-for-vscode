@@ -4,6 +4,8 @@
 
 插件把官方 Harness 的会话、流式输出、工具、审批、提问、子代理、Skills、模型设置和工作区完整放进编辑器侧栏，并补充选区上下文、文件跳转、Diff、进程管理与诊断能力；它不会重写 Harness 协议。
 
+![DeepSeek Harness UI 嵌入 VS Code 编辑器侧栏的界面演示](https://raw.githubusercontent.com/MagicShawn/deepseek-harness-for-vscode/main/media/demo-overview.png)
+
 英文说明随包提供：`README.md`。
 
 ## 功能

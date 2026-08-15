@@ -4,6 +4,8 @@ An unofficial, local-first VS Code workspace for the official [DeepSeek Harness]
 
 The extension keeps the complete official Harness experience—sessions, streaming, tools, approvals, questions, subagents, skills, model settings, and workspaces—beside your editor. It adds editor-native context, file navigation, diff, process lifecycle, and diagnostics without reimplementing the Harness protocol.
 
+![DeepSeek Harness UI embedded beside the VS Code editor](https://raw.githubusercontent.com/MagicShawn/deepseek-harness-for-vscode/main/media/demo-overview.png)
+
 简体中文说明随包提供：`README.zh-CN.md`。
 
 ## Features

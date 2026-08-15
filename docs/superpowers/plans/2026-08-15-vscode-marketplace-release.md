@@ -15,7 +15,7 @@
 - Marketplace display name is exactly `DeepSeek Harness UI (Unofficial)` and pricing is `Free`.
 - Release version is exactly `0.1.1`; existing GitHub release `v0.1.0` must not be changed.
 - Runtime, proxy, editor bridge, command IDs, setting IDs, and security behavior remain unchanged.
-- `D:/Pictures/Screenshots/example.png` becomes `media/demo-overview.png` at its original 2048 by 1228 resolution.
+- `D:/Pictures/Screenshots/example.png` becomes `media/demo-overview.png` at its original 2547 by 1515 resolution.
 - No Microsoft credential, PAT, cookie, authentication code, API key, or `.env` file may enter the repository or command output.
 - Marketplace warnings and security scans may not be bypassed.
 
@@ -234,7 +234,7 @@ try {
   $path.StartFigure()
   $path.AddLine(27, 28, 56, 28)
   $path.AddBezier(56, 28, 86, 28, 102, 43, 102, 64)
-  $path.AddBezier(102, 85, 86, 100, 56, 100)
+  $path.AddBezier(102, 64, 102, 85, 86, 100, 56, 100)
   $path.AddLine(56, 100, 27, 100)
   $path.CloseFigure()
 
@@ -270,7 +270,7 @@ Run:
 Copy-Item -LiteralPath 'D:\Pictures\Screenshots\example.png' -Destination 'media\demo-overview.png'
 ```
 
-Expected: the source and destination SHA-256 hashes match and the destination remains 2048 by 1228.
+Expected: the source and destination SHA-256 hashes match and the destination remains 2547 by 1515.
 
 - [ ] **Step 5: Add the screenshot to both Marketplace README variants**
 

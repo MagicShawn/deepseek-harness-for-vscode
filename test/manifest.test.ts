@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -50,6 +50,18 @@ describe('extension manifest', () => {
         theme: 'dark',
       },
     })
+  })
+
+  it('ships valid Marketplace media and references the interface demo', async () => {
+    await access(path.resolve('media/demo-overview.png'))
+    const icon = await readFile(path.resolve('media/icon.png'))
+    expect([...icon.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10])
+    expect(icon.readUInt32BE(16)).toBe(128)
+    expect(icon.readUInt32BE(20)).toBe(128)
+
+    const imageUrl = 'https://raw.githubusercontent.com/MagicShawn/deepseek-harness-for-vscode/main/media/demo-overview.png'
+    await expect(readFile(path.resolve('README.md'), 'utf8')).resolves.toContain(imageUrl)
+    await expect(readFile(path.resolve('README.zh-CN.md'), 'utf8')).resolves.toContain(imageUrl)
   })
 
   it('declares startup and both visual activation surfaces', async () => {

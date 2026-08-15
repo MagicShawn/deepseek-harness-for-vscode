@@ -35,7 +35,7 @@ The extension manifest will add the public repository, homepage, issue tracker, 
 
 The Marketplace icon will be a 128 by 128 PNG derived from the existing activity-bar Harness symbol: a restrained indigo-to-blue background, white Harness outline, and no DeepSeek corporate logo. The existing theme-aware `media/activity.svg` remains unchanged for the VS Code Activity Bar.
 
-The user-supplied `D:/Pictures/Screenshots/example.png` will be copied into the repository as `media/demo-overview.png` and used as the primary interface demonstration image in both README files and the Marketplace listing. The 2048 by 1228 screenshot will remain uncropped because the complete VS Code frame demonstrates that Harness is embedded beside the editor. Its current 142,659-byte PNG is already compact enough to retain at original resolution. The image contains no account credentials, API keys, conversations, or personal profile details.
+The user-supplied `D:/Pictures/Screenshots/example.png` will be copied into the repository as `media/demo-overview.png` and used as the primary interface demonstration image in both README files and the Marketplace listing. The 2547 by 1515 screenshot will remain uncropped because the complete VS Code frame demonstrates that Harness is embedded beside the editor. Its current 142,659-byte PNG is already compact enough to retain at original resolution. The image contains no account credentials, API keys, conversations, or personal profile details.
 
 ## Package and Documentation Changes
 
