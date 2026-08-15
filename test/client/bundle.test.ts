@@ -36,7 +36,13 @@ describe('browser bundle handoff', () => {
       if (!modules.has(id)) throw new Error(`Unexpected client external: ${id}`)
       return modules.get(id)
     })
-    expect(plugin.inject).toEqual(['slots', 'conversationEvents', 'conversationViews', 'sessions'])
+    expect(plugin.inject).toEqual([
+      'slots',
+      'conversationEvents',
+      'conversationViews',
+      'sessions',
+      'connection',
+    ])
     expect(plugin.apply).toBeTypeOf('function')
   })
 })
