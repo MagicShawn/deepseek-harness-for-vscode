@@ -2,5 +2,6 @@ node_modules/
 dist/
 coverage/
 .worktrees/
+/docs/superpowers/
 *.log
 .DS_Store
